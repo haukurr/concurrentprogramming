@@ -23,8 +23,10 @@ public class Lab1 {
         private Direction direction;
 
         private int sensors[][] = {
-            {7,11},
-            {9,9}
+            {14,3}, //UPPER TOP STOP
+            {14,5}, //LOWER TOP STOP
+            {14,11}, //UPPER BOTTOM STOP
+            {14,13} //LOWER BOTTOM STOP
         };
 
         private void setSwitch(int i, Direction direction) {
@@ -49,7 +51,6 @@ public class Lab1 {
             this.tsi = TSimInterface.getInstance();
             this.direction = d;
             this.setSpeed(train_speed);
-            this.setSwitch(1,Direction.DOWN);
         }
 
         public void setSpeed(int speed) {
@@ -60,11 +61,15 @@ public class Lab1 {
             try {
                 this.tsi.setSpeed(this.id,speed);
                 this.speed = speed;
-            } catch (CommandException e) {}
+            } catch (CommandException e) { System.exit(1); }
         }
 
         public void stopTrain() {
             this.setSpeed(0);
+        }
+
+        public void turnTrain() {
+            this.setSpeed(-this.speed);
         }
 
         @Override
@@ -79,14 +84,14 @@ public class Lab1 {
                                 if(this.direction == Direction.UP) {
                                     switch(i) {
                                         case 0: case 1:
-                                        this.setSpeed(10);
+                                        this.turnTrain();
                                         break;
                                     }
                                 }
                                 if(this.direction == Direction.DOWN) {
                                     switch(i) {
-                                        case 0: case 1:
-                                        this.setSpeed(10);
+                                        case 2: case 3:
+                                        this.turnTrain();
                                         break;
                                     }
                                 } else
@@ -105,7 +110,7 @@ public class Lab1 {
     public Lab1(String[] args) {
         //DEFAULTS
         int simulation_speed = 20;
-        int bottom_train_speed 5;
+        int bottom_train_speed = 5;
         int top_train_speed = bottom_train_speed;
 
         try {
@@ -124,10 +129,10 @@ public class Lab1 {
             semaphores[i] = new Semaphore(1,true);
         }
 
-        this.top_train = new Train(1, top_train_speed, Direction.DOWN);
+        //this.top_train = new Train(1, top_train_speed, Direction.DOWN);
         this.bottom_train = new Train(2, bottom_train_speed, Direction.UP);
 
-        this.top_train.start();
+        //this.top_train.start();
         this.bottom_train.start();
     }
 
