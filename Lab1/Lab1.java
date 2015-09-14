@@ -21,12 +21,23 @@ public class Lab1 {
         private int speed;
         private TSimInterface tsi;
         private Direction direction;
+        private boolean is_turning;
 
         private int sensors[][] = {
-            {14,3}, //UPPER TOP STOP
-            {14,5}, //LOWER TOP STOP
-            {14,11}, //UPPER BOTTOM STOP
-            {14,13} //LOWER BOTTOM STOP
+            {14,3},  /*  0 - UPPER TOP STOP */
+            {14,5},  /*  1 - LOWER TOP STOP */
+            {14,11}, /*  2 - UPPER BOTTOM STOP */
+            {14,13},  /*  3 - LOWER BOTTOM STOP */
+
+            {1,10},  /*  4 - LEFT SIDE*/
+            {6,9},  /*  5 - */
+            {14,9},  /*  6 - */
+            {16,7},  /*  7 - */
+            {14,10},  /*  8 - */
+            {16,9},  /*  9 - */
+            {5,10},  /*  10 - */
+            {3,9},  /*  11 - */
+            {2,11}  /*  12 - */
         };
 
         private void setSwitch(int i, Direction direction) {
@@ -50,7 +61,16 @@ public class Lab1 {
             this.id = id;
             this.tsi = TSimInterface.getInstance();
             this.direction = d;
+            this.is_turning = false;
             this.setSpeed(train_speed);
+            try {
+                if(d == Direction.UP) {
+                    semaphores[0].acquire(); //Lower Station
+                } else {
+                    semaphores[1].acquire(); //Upper station
+                }
+            }
+            catch(InterruptedException e) { System.exit(1); }
         }
 
         public void setSpeed(int speed) {
@@ -69,7 +89,22 @@ public class Lab1 {
         }
 
         public void turnTrain() {
-            this.setSpeed(-this.speed);
+            int speed = this.speed;
+            if(this.is_turning) {
+                return;
+            }
+            this.is_turning = true;
+            this.stopTrain();
+            try {
+                this.sleep(this.speedAtStation());
+            } catch(InterruptedException e) { System.exit(1); }
+            this.setSpeed(-speed);
+            this.is_turning = false;
+            if(this.direction == Direction.DOWN) {
+                this.direction = Direction.UP;
+            } else {
+                this.direction = Direction.DOWN;
+            }
         }
 
         @Override
@@ -83,19 +118,107 @@ public class Lab1 {
                             if(Arrays.equals(pos,sensors[i])) {
                                 if(this.direction == Direction.UP) {
                                     switch(i) {
+
                                         case 0: case 1:
-                                        this.turnTrain();
+                                            this.turnTrain();
                                         break;
+
+                                        case 2:
+                                        break;
+
+                                        case 3:
+                                        break;
+
+                                        case 4:
+                                            semaphores[2].acquire();
+                                            semaphores[0].release();
+                                            if(semaphores[3].tryAcquire()) {
+                                                this.setSwitch(1,Direction.UP);
+                                            } else {
+                                                this.setSwitch(1,Direction.DOWN);
+                                            }
+                                        break;
+
+                                        case 5:
+                                            semaphores[3].acquire();
+                                            semaphores[5].release();
+                                        break;
+
+                                        case 6:
+                                            if(!semaphores[4].tryAcquire()) {
+                                                int speed = this.speed;
+                                                this.stopTrain();
+                                                semaphores[4].acquire();
+                                                this.setSwitch(2,Direction.DOWN);
+                                                this.setSpeed(speed);
+                                            }
+                                            this.setSwitch(3,Direction.UP);
+                                        break;
+
+                                        case 10:
+                                            semaphores[5].release();
+                                        break;
+
+                                        case 11:
+                                            if(semaphores[6].tryAcquire()) {
+                                                this.setSwitch(1,Direction.UP);
+                                            } else {
+                                                this.setSwitch(1,Direction.DOWN);
+                                            }
+                                        break;
+
+                                        case 12:
+                                            semaphores[5].acquire();
+                                            //semaphores[0].release();
+                                        break;
+
                                     }
                                 }
                                 if(this.direction == Direction.DOWN) {
                                     switch(i) {
                                         case 2: case 3:
-                                        this.turnTrain();
+                                            this.turnTrain();
                                         break;
+
+                                        case 5:
+                                        System.out.println("HERE!!");
+                                            if(!semaphores[5].tryAcquire()) {
+                                                int speed = this.speed;
+                                                this.stopTrain();
+                                                semaphores[5].acquire();
+                                                this.setSpeed(speed);
+                                            }
+                                            this.setSwitch(1,Direction.DOWN);
+                                        break;
+
+                                        case 6:
+                                            semaphores[3].acquire();
+                                        break;
+
+                                        case 7:
+                                            if(semaphores[4].tryAcquire()) {
+                                                this.setSwitch(3,Direction.DOWN);
+                                            } else {
+
+                                            }
+                                        break;
+
+                                        case 8:
+                                            semaphores[4].release();
+                                        break;
+
+                                        case 10:
+                                            if(!semaphores[5].tryAcquire()) {
+                                                int speed = this.speed;
+                                                this.stopTrain();
+                                                semaphores[5].acquire();
+                                                this.setSpeed(speed);
+                                            }
+                                            this.setSwitch(1,Direction.DOWN);
+                                        break;
+
                                     }
-                                } else
-                                break;
+                                }
                             }
                         }
                     }
@@ -104,7 +227,6 @@ public class Lab1 {
                 catch(InterruptedException e) { System.exit(1); }
             }
         }
-
     }
 
     public Lab1(String[] args) {
@@ -129,10 +251,10 @@ public class Lab1 {
             semaphores[i] = new Semaphore(1,true);
         }
 
-        //this.top_train = new Train(1, top_train_speed, Direction.DOWN);
+        this.top_train = new Train(1, top_train_speed, Direction.DOWN);
         this.bottom_train = new Train(2, bottom_train_speed, Direction.UP);
 
-        //this.top_train.start();
+        this.top_train.start();
         this.bottom_train.start();
     }
 
