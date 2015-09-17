@@ -1,8 +1,7 @@
 import TSim.*;
 import java.util.concurrent.Semaphore;
 import java.util.Arrays;
-import java.util.Deque;
-import java.util.ArrayDeque;
+import java.util.ArrayList;
 
 public class Lab1 {
 
@@ -33,7 +32,8 @@ public class Lab1 {
         private TSimInterface tsi;
         private Direction direction;
         private boolean is_turning;
-        Deque<Semaphore> stack = new ArrayDeque<Semaphore>();
+
+        private ArrayList<Integer> acquired_sems;
 
         private int sensors[][] = {
             {14,3},  /*  0 - UPPER TOP STOP */
@@ -76,18 +76,35 @@ public class Lab1 {
             return this.TIME_AT_STATION + 2 * simulation_speed * Math.abs(this.speed);
         }
 
-        private void releaseSemaphore() {
-            stack.pop().release();
+        private void acquireSemaphore(int i) {
+            acquired_sems.add(i);
+            try{
+                semaphores[i].acquire();
+            } catch(InterruptedException e) { e.printStackTrace(); }
+        }
+
+        private boolean tryAcquireSemaphore(int i) {
+            if(semaphores[i].tryAcquire()){
+                acquired_sems.add(i);
+                return true;
+            }
+            return false;
+        }
+
+        private void releaseSemaphore(int i) {
+            int index = acquired_sems.indexOf(i);
+            if(index >= 0) {
+                acquired_sems.remove(index);
+                semaphores[i].release();
+            }
         }
 
         private void waitForSemaphore(int i) {
-            if(!semaphores[i].tryAcquire()) {
-                try {
+            if(!this.tryAcquireSemaphore(i)) {
                     int speed = this.speed;
                     this.stopTrain();
-                    semaphores[i].acquire();
+                    this.acquireSemaphore(i);
                     this.setSpeed(speed);
-                } catch(InterruptedException e) { e.printStackTrace(); }
             }
         }
 
@@ -99,6 +116,7 @@ public class Lab1 {
             this.direction = d;
             this.is_turning = false;
             this.setSpeed(train_speed);
+            this.acquired_sems = new ArrayList<>();
         }
 
         public void setSpeed(int speed) {
@@ -172,13 +190,11 @@ public class Lab1 {
                                         break;
 
                                         case 6:
-                                            if(semaphores[2].availablePermits() == 0) {
-                                                semaphores[2].release();
-                                            }
+                                            this.releaseSemaphore(2);
                                         break;
 
                                         case 7:
-                                            if(semaphores[5].tryAcquire()) {
+                                            if(this.tryAcquireSemaphore(5)) {
                                                 this.setSwitch(1,Direction.UP);
                                             } else {
                                                 this.setSwitch(1,Direction.DOWN);
@@ -196,7 +212,7 @@ public class Lab1 {
                                         break;
 
                                         case 10:
-                                            if(semaphores[1].tryAcquire()) {
+                                            if(this.tryAcquireSemaphore(1)) {
                                                 this.setSwitch(3,Direction.UP);
                                             } else {
                                                 this.setSwitch(3,Direction.DOWN);
@@ -204,33 +220,23 @@ public class Lab1 {
                                         break;
 
                                         case 11:
-                                            if(semaphores[6].availablePermits() == 0) {
-                                                semaphores[6].release();
-                                            }
+                                            this.releaseSemaphore(6);
                                         break;
 
                                         case 12:
-                                            if(semaphores[4].availablePermits() == 0) {
-                                                semaphores[4].release();
-                                            }
+                                            this.releaseSemaphore(4);
                                         break;
 
                                         case 13:
-                                            if(semaphores[4].availablePermits() == 0) {
-                                                semaphores[4].release();
-                                            }
+                                            this.releaseSemaphore(4);
                                         break;
 
                                         case 14:
-                                            if(semaphores[5].availablePermits() == 0) {
-                                                semaphores[5].release();
-                                            }
+                                            this.releaseSemaphore(5);
                                         break;
 
                                         case 15:
-                                            if(semaphores[6].availablePermits() == 0) {
-                                                semaphores[6].release();
-                                            }
+                                            this.releaseSemaphore(6);
                                         break;
 
                                     }
@@ -253,19 +259,15 @@ public class Lab1 {
                                         break;
 
                                         case 4:
-                                            if(semaphores[4].availablePermits() == 0) {
-                                                semaphores[4].release();
-                                            }
+                                            this.releaseSemaphore(4);
                                         break;
 
                                         case 5:
-                                            if(semaphores[4].availablePermits() == 0) {
-                                                semaphores[4].release();
-                                            }
+                                            this.releaseSemaphore(4);
                                         break;
 
                                         case 6:
-                                            if(semaphores[2].tryAcquire()) {
+                                            if(this.tryAcquireSemaphore(2)) {
                                                 this.setSwitch(0,Direction.UP);
                                             } else {
                                                 this.setSwitch(0,Direction.DOWN);
@@ -273,29 +275,21 @@ public class Lab1 {
                                         break;
 
                                         case 7:
-                                            if(semaphores[5].availablePermits() == 0) {
-                                                semaphores[5].release();
-                                            }
+                                            this.releaseSemaphore(5);
                                         break;
 
                                         case 8:
-                                            if(semaphores[6].availablePermits() == 0) {
-                                                semaphores[6].release();
-                                            }
+                                            this.releaseSemaphore(6);
                                             this.setSwitch(2,Direction.DOWN);
                                         break;
 
                                         case 9:
-                                            if(semaphores[6].availablePermits() == 0) {
-                                                semaphores[6].release();
-                                            }
-                                            this.setSwitch(2,Direction.DOWN);
+                                            this.releaseSemaphore(6);
+                                            this.setSwitch(2,Direction.UP);
                                         break;
 
                                         case 10:
-                                            if(semaphores[1].availablePermits() == 0) {
-                                                semaphores[1].release();
-                                            }
+                                            this.releaseSemaphore(1);
                                         break;
 
                                         case 11:
@@ -314,7 +308,7 @@ public class Lab1 {
                                         break;
 
                                         case 14:
-                                            if(semaphores[5].tryAcquire()) {
+                                            if(this.tryAcquireSemaphore(5)) {
                                                 this.setSwitch(2,Direction.DOWN);
                                             } else {
                                                 this.setSwitch(2,Direction.UP);
@@ -322,7 +316,7 @@ public class Lab1 {
                                         break;
 
                                         case 15:
-                                            semaphores[1].release();
+                                            this.releaseSemaphore(1);
                                             this.waitForSemaphore(6);
                                             this.setSwitch(3,Direction.UP);
                                         break;
