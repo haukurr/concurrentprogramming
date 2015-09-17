@@ -109,6 +109,10 @@ public class Lab1 {
 
         //Stops the train until a semaphore of the given index can be acquired
         private void waitForSemaphore(int i) {
+            if(acquired_semaphores.indexOf(i) != -1) {
+                //Already have it no need to ask for it again
+                return;
+            }
             if(!this.tryAcquireSemaphore(i)) {
                 int speed = this.speed;
                 this.stopTrain();
@@ -258,9 +262,11 @@ public class Lab1 {
                                     switch(i) { //Index of sensor
 
                                         case 0:
+                                            this.waitForSemaphore(7);
                                         break;
 
                                         case 1:
+                                            this.waitForSemaphore(7);
                                         break;
 
                                         case 2:
