@@ -5,7 +5,7 @@ import java.util.ArrayList;
 
 public class Lab1 {
 
-    private final Semaphore[] semaphores = new Semaphore[9];
+    private final Semaphore[] semaphores = new Semaphore[8];
     //0 - TOP STATION UPPER
     //1 - TOP STATION LOWER
     //2 - BOTTOM STATION UPPER
@@ -25,7 +25,7 @@ public class Lab1 {
     private class Train extends Thread {
 
         private final int TIME_AT_STATION = 1500;
-        private final int MAXSPEED = 19;
+        private final int MAXSPEED = 22;
 
         private int id;
         private int speed;
@@ -33,28 +33,29 @@ public class Lab1 {
         private Direction direction;
         private boolean is_turning;
 
-        private ArrayList<Integer> acquired_sems;
+        private ArrayList<Integer> acquired_semaphores;
 
         private int sensors[][] = {
-            {14,3},  /*  0 - UPPER TOP STOP */
-            {14,5},  /*  1 - LOWER TOP STOP */
-            {14,11}, /*  2 - UPPER BOTTOM STOP */
+            {14,3},   /*  0 - UPPER TOP STOP */
+            {14,5},   /*  1 - LOWER TOP STOP */
+            {14,11},  /*  2 - UPPER BOTTOM STOP */
             {14,13},  /*  3 - LOWER BOTTOM STOP */
 
-            {4,13},  /*  4 - LOWER BOTTOM STATION WAITING POINT */
-            {4,11},  /*  5 - UPPER BOTTOM STATION WAITING POINT */
+            {6,13},   /*  4 - LOWER BOTTOM STATION WAITING POINT */
+            {6,11},   /*  5 - UPPER BOTTOM STATION WAITING POINT */
 
-            {2,11},  /*  6 - FIRST BOTTOM TURN */
-            {3,9},  /*  7 - BY MIDDLE SWITCH TO THE LEFT */
+            {1,10},   /*  6 - TURN TO MIDDLE LANE ON THE LEFT */
 
-            {12,9},  /*  8 - TOP MIDDLE LANE STOP */
-            {12,10},  /*  9 - BOTTOM MIDDLE LANE STOP */
+            {3,9},    /*  7 - BY MIDDLE SWITCH TO THE LEFT */
+
+            {12,9},   /*  8 - TOP MIDDLE LANE STOP TO THE RIGHT*/
+            {12,10},  /*  9 - BOTTOM MIDDLE LANE STOP TO THE RIGHT*/
 
             {18,7},  /*  10 - TURNPOINT BETWEEN TOP STATIONS*/
             {14,7},  /*  11 - MIDDLE TURN WAITING POINT*/
 
-            {6,9},  /*  12 - MIDDLE TOP LANE WAITING POINT*/
-            {6,10},  /*  13 - MIDDLE BOTTOM LANE WAITING POINT*/
+            {6,9},   /*  12 - TOP MIDDLE LANE WAITING POINT TO THE LEFT */
+            {6,10},  /*  13 - BOTTOM MIDDLE LANE WAITING POINT TO THE LEFT */
 
             {17,9},  /*  14 - UPPER BEGINNING OF RIGHT TURN*/
             {14,8}  /*  15 - LOWER BEGINNING OF RIGHT TURN*/
@@ -79,22 +80,22 @@ public class Lab1 {
         private void acquireSemaphore(int i) {
             try{
                 semaphores[i].acquire();
-                acquired_sems.add(i);
+                acquired_semaphores.add(i);
             } catch(InterruptedException e) { e.printStackTrace(); }
         }
 
         private boolean tryAcquireSemaphore(int i) {
             if(semaphores[i].tryAcquire()){
-                acquired_sems.add(i);
+                acquired_semaphores.add(i);
                 return true;
             }
             return false;
         }
 
         private void releaseSemaphore(int i) {
-            int index = acquired_sems.indexOf(i);
+            int index = acquired_semaphores.indexOf(i);
             if(index >= 0) {
-                acquired_sems.remove(index);
+                acquired_semaphores.remove(index);
                 semaphores[i].release();
             }
         }
@@ -116,7 +117,7 @@ public class Lab1 {
             this.direction = d;
             this.is_turning = false;
             this.setSpeed(train_speed);
-            this.acquired_sems = new ArrayList<>();
+            this.acquired_semaphores = new ArrayList<>();
         }
 
         public void setSpeed(int speed) {
@@ -221,6 +222,7 @@ public class Lab1 {
 
                                         case 11:
                                             this.releaseSemaphore(6);
+                                            this.waitForSemaphore(7);
                                         break;
 
                                         case 12:
@@ -237,6 +239,7 @@ public class Lab1 {
 
                                         case 15:
                                             this.releaseSemaphore(6);
+                                            this.waitForSemaphore(7);
                                         break;
 
                                     }
@@ -293,6 +296,7 @@ public class Lab1 {
                                         break;
 
                                         case 11:
+                                            this.releaseSemaphore(7);
                                             this.waitForSemaphore(6);
                                             this.setSwitch(3,Direction.DOWN);
                                         break;
@@ -316,6 +320,7 @@ public class Lab1 {
                                         break;
 
                                         case 15:
+                                            this.releaseSemaphore(7);
                                             this.waitForSemaphore(6);
                                             this.setSwitch(3,Direction.UP);
                                         break;
