@@ -77,9 +77,9 @@ public class Lab1 {
         }
 
         private void acquireSemaphore(int i) {
-            acquired_sems.add(i);
             try{
                 semaphores[i].acquire();
+                acquired_sems.add(i);
             } catch(InterruptedException e) { e.printStackTrace(); }
         }
 
@@ -101,10 +101,10 @@ public class Lab1 {
 
         private void waitForSemaphore(int i) {
             if(!this.tryAcquireSemaphore(i)) {
-                    int speed = this.speed;
-                    this.stopTrain();
-                    this.acquireSemaphore(i);
-                    this.setSpeed(speed);
+                int speed = this.speed;
+                this.stopTrain();
+                this.acquireSemaphore(i);
+                this.setSpeed(speed);
             }
         }
 
