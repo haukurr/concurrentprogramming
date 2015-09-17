@@ -1,0 +1,58 @@
+DOCUMENTATION
+-------------
+
+Short description of code
+- - - - - - - - - - - - - -
+To keep track of each train i made a class called Train that extends Thread.
+
+Each train class keeps a tracklist of which semaphores it has acquired, it's direction and speed.
+
+I placed all the sensors coordinates in an array that can be accessed easily by indexes.
+
+I wrote some wrapper functions for interacting with the semaphores and the lists of semaphores that have been acquired. They are explained using comments in the code.
+
+The main logic of the code happens in the run function which is overidden from Thread.
+
+The run function has an infinite loop with two switches which are chosen depending on which direction each train is going into.
+
+Placement of the sensors
+- - - - - - - - - - - - - -
+I began by placing sensors by both stations, both the upper lane and lower lane.
+These sensors indicate the train has reached it's destination.
+
+Then I placed stopping points at the end of each lane coming from stations.
+At these points the train should check whether it's safe to take a turn(whether it's occupied or not).
+If not it has to wait until the other train has finished taking it.
+
+At the turn going to the vertically center lane i placed a sensor where trains should choose how to flip the swithch. The default is the upper lane going to the lower station but if it's occupied it should choose the lower lane.
+
+Right before the switch in the vertically centered lane i placed a sensor where it should be checked whether the straight path can be taken. If it's occupied, take the lower path. I also put a sensor for the same purpose on the other side of the straight path when going the other way.
+
+On both the upper and lower paths in the center i put sensors where it should be checked whether the turns on the right and left are occupied. If not, the train has to wait at that sensor until the other train has finished taking the turn.
+
+At the end of the turn going to the upper station I put a sensor right before the switch.
+Here the default path is the shorter one that approaches the station from the bottom.
+If it's not available the longer path is taken.
+
+To make sure the trains won't collide in the 4 way crosspath on top, I added sensors at the beginning of both lanes going to the top station. At these sensors i made sure only one train goes to the station from there on.
+This way there is no way for them to collide at the intersection, although this sacrifices a bit of speed.
+
+I hope this is understandable to you, kind of hard to explain this without any images.
+
+Choice of critical sections
+- - - - - - - - - - - - - -
+My critical sections are basically all sections where there is only one lane to reach a destination.
+
+Maximum train speed
+- - - - - - - - - - - - - -
+The absolute maximum speed before the trains would collide is 22 for both.
+Higher than this means the trains start sliding quite a bit when braking which means they can either go on top of the switches being operated by the other train or collide with them.
+
+Testing
+- - - - - - - - - - - - - -
+I tested quite a few values which all were successful.
+5 20 - this one was useful to get the trains to reach the same station and test the functionality there.
+10 20 - Just more testing trains with big difference in values
+15 17 - Tried out trains with a slight difference in speed
+22 22 - My max reached value before it started causing problems.
+
