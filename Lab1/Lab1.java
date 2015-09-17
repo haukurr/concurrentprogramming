@@ -82,12 +82,12 @@ public class Lab1 {
 
         private void waitForSemaphore(int i) {
             if(!semaphores[i].tryAcquire()) {
-                int speed = this.speed;
-                this.stopTrain();
                 try {
+                    int speed = this.speed;
+                    this.stopTrain();
                     semaphores[i].acquire();
+                    this.setSpeed(speed);
                 } catch(InterruptedException e) { e.printStackTrace(); }
-                this.setSpeed(speed);
             }
         }
 
