@@ -10,9 +10,9 @@ public class Lab1 {
     //1 - TOP STATION LOWER
     //2 - BOTTOM STATION UPPER
     //3 - BOTTOM STATION LOWER
-    //4 - FIRST BOTTOM TURN
+    //4 - LEFT BOTTOM TURN
     //5 - MIDDLE LANE
-    //6 - MIDDLE TURN
+    //6 - RIGHT TOP TURN
     //7 - 4 WAY CROSSING
     private Train top_train;
     private Train bottom_train;
@@ -24,16 +24,17 @@ public class Lab1 {
 
     private class Train extends Thread {
 
-        private final int TIME_AT_STATION = 1500;
-        private final int MAXSPEED = 22;
+        private final int TIME_AT_STATION = 1500; //in milliseconds
+        private final int MAXSPEED = 22; //Maximum supported speed
 
         private int id;
-        private int speed;
+        private int speed; //Train speed
         private TSimInterface tsi;
-        private Direction direction;
-        private boolean is_turning;
+        private Direction direction; //Up or down the railway
+        private boolean is_turning; //state variable for turning
 
-        private ArrayList<Integer> acquired_semaphores;
+        //Indexes of currently acquired semaphores
+        private ArrayList<Integer> acquired_semaphores; 
 
         private int sensors[][] = {
             {14,3},   /*  0 - UPPER TOP STOP */
@@ -52,21 +53,24 @@ public class Lab1 {
             {12,10},  /*  9 - BOTTOM MIDDLE LANE STOP TO THE RIGHT*/
 
             {18,7},  /*  10 - TURNPOINT BETWEEN TOP STATIONS*/
-            {14,7},  /*  11 - MIDDLE TURN WAITING POINT*/
+
+            {14,7},  /*  11 - WAITING POINT FOR UPPER TOP STATION */
 
             {6,9},   /*  12 - TOP MIDDLE LANE WAITING POINT TO THE LEFT */
             {6,10},  /*  13 - BOTTOM MIDDLE LANE WAITING POINT TO THE LEFT */
 
             {17,9},  /*  14 - UPPER BEGINNING OF RIGHT TURN*/
-            {14,8}  /*  15 - LOWER BEGINNING OF RIGHT TURN*/
+
+            {14,8}  /*  15 - WAITING POINT FOR LOWER TOP STATION*/
         };
 
+        //Set a switch with a given index, can see coordinates of each sensor in array below
         private void setSwitch(int i, Direction direction) {
             int switches[][] = {
-                {3,11},
-                {4,9},
-                {15,9},
-                {17,7}
+                {3,11}, //0
+                {4,9},  //1
+                {15,9}, //2
+                {17,7}  //3
             };
             try {
                 this.tsi.setSwitch(switches[i][0], switches[i][1], direction.ordinal()+1);
@@ -77,6 +81,7 @@ public class Lab1 {
             return this.TIME_AT_STATION + 2 * simulation_speed * Math.abs(this.speed);
         }
 
+        //Wrapper that makes use of our list of acquired semaphores
         private void acquireSemaphore(int i) {
             try{
                 semaphores[i].acquire();
@@ -84,6 +89,7 @@ public class Lab1 {
             } catch(InterruptedException e) { e.printStackTrace(); }
         }
 
+        //Wrapper that makes use of our list of acquired semaphores
         private boolean tryAcquireSemaphore(int i) {
             if(semaphores[i].tryAcquire()){
                 acquired_semaphores.add(i);
@@ -92,6 +98,7 @@ public class Lab1 {
             return false;
         }
 
+        //Wrapper that makes use of our list of acquired semaphores
         private void releaseSemaphore(int i) {
             int index = acquired_semaphores.indexOf(i);
             if(index >= 0) {
@@ -100,6 +107,7 @@ public class Lab1 {
             }
         }
 
+        //Stops the train until a semaphore of the given index can be acquired
         private void waitForSemaphore(int i) {
             if(!this.tryAcquireSemaphore(i)) {
                 int speed = this.speed;
@@ -120,6 +128,7 @@ public class Lab1 {
             this.acquired_semaphores = new ArrayList<>();
         }
 
+        //Sets speed of train
         public void setSpeed(int speed) {
             if(speed > MAXSPEED) {
                 this.setSpeed(MAXSPEED);
@@ -135,6 +144,7 @@ public class Lab1 {
             this.setSpeed(0);
         }
 
+        //Makes the train drive in reverse
         public void turnTrain() {
             int speed = this.speed;
             if(this.is_turning) {
@@ -164,7 +174,7 @@ public class Lab1 {
                         for(int i=0;i<sensors.length;i++) {
                             if(Arrays.equals(pos,sensors[i])) {
                                 if(this.direction == Direction.UP) {
-                                    switch(i) {
+                                    switch(i) { //Index of sensor
 
                                         case 0:
                                             this.turnTrain();
@@ -245,7 +255,7 @@ public class Lab1 {
                                     }
                                 }
                                 else if(this.direction == Direction.DOWN) {
-                                    switch(i) {
+                                    switch(i) { //Index of sensor
 
                                         case 0:
                                         break;
@@ -343,6 +353,7 @@ public class Lab1 {
         int bottom_train_speed = 5;
         int top_train_speed = bottom_train_speed;
 
+        //Use the given arguments if provided
         try {
             top_train_speed = Integer.parseInt(args[0]);
         } catch(ArrayIndexOutOfBoundsException e){}
