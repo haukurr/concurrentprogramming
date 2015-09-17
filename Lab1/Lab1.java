@@ -53,8 +53,8 @@ public class Lab1 {
             {18,7},  /*  10 - TURNPOINT BETWEEN TOP STATIONS*/
             {14,7},  /*  11 - MIDDLE TURN WAITING POINT*/
 
-            {5,9},  /*  12 - MIDDLE TOP LANE WAITING POINT*/
-            {5,10},  /*  13 - MIDDLE BOTTOM LANE WAITING POINT*/
+            {6,9},  /*  12 - MIDDLE TOP LANE WAITING POINT*/
+            {6,10},  /*  13 - MIDDLE BOTTOM LANE WAITING POINT*/
 
             {17,9},  /*  14 - UPPER BEGINNING OF RIGHT TURN*/
             {14,8}  /*  15 - LOWER BEGINNING OF RIGHT TURN*/
@@ -316,7 +316,6 @@ public class Lab1 {
                                         break;
 
                                         case 15:
-                                            this.releaseSemaphore(1);
                                             this.waitForSemaphore(6);
                                             this.setSwitch(3,Direction.UP);
                                         break;
