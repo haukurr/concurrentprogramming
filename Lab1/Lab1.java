@@ -1,6 +1,8 @@
 import TSim.*;
 import java.util.concurrent.Semaphore;
 import java.util.Arrays;
+import java.util.Deque;
+import java.util.ArrayDeque;
 
 public class Lab1 {
 
@@ -31,6 +33,7 @@ public class Lab1 {
         private TSimInterface tsi;
         private Direction direction;
         private boolean is_turning;
+        Deque<Semaphore> stack = new ArrayDeque<Semaphore>();
 
         private int sensors[][] = {
             {14,3},  /*  0 - UPPER TOP STOP */
@@ -71,6 +74,21 @@ public class Lab1 {
 
         private int speedAtStation() {
             return this.TIME_AT_STATION + 2 * simulation_speed * Math.abs(this.speed);
+        }
+
+        private void releaseSemaphore() {
+            stack.pop().release();
+        }
+
+        private void waitForSemaphore(int i) {
+            if(!semaphores[i].tryAcquire()) {
+                int speed = this.speed;
+                this.stopTrain();
+                try {
+                    semaphores[i].acquire();
+                } catch(InterruptedException e) { e.printStackTrace(); }
+                this.setSpeed(speed);
+            }
         }
 
         public Train(int id, int train_speed, Direction d) {
@@ -144,22 +162,12 @@ public class Lab1 {
                                         break;
 
                                         case 4:
-                                            if(!semaphores[4].tryAcquire()) {
-                                                int speed = this.speed;
-                                                this.stopTrain();
-                                                semaphores[4].acquire();
-                                                this.setSpeed(speed);
-                                            }
+                                            this.waitForSemaphore(4);
                                             this.setSwitch(0,Direction.DOWN);
                                         break;
 
                                         case 5:
-                                            if(!semaphores[4].tryAcquire()) {
-                                                int speed = this.speed;
-                                                this.stopTrain();
-                                                semaphores[4].acquire();
-                                                this.setSpeed(speed);
-                                            }
+                                            this.waitForSemaphore(4);
                                             this.setSwitch(0,Direction.UP);
                                         break;
 
@@ -170,38 +178,28 @@ public class Lab1 {
                                         break;
 
                                         case 7:
-                                            if(!semaphores[5].tryAcquire()) {
-                                                this.setSwitch(1,Direction.DOWN);
-                                            } else {
+                                            if(semaphores[5].tryAcquire()) {
                                                 this.setSwitch(1,Direction.UP);
+                                            } else {
+                                                this.setSwitch(1,Direction.DOWN);
                                             }
                                         break;
 
                                         case 8:
-                                            if(!semaphores[6].tryAcquire()) {
-                                                int speed = this.speed;
-                                                this.stopTrain();
-                                                semaphores[6].acquire();
-                                                this.setSpeed(speed);
-                                            }
+                                            this.waitForSemaphore(6);
                                             this.setSwitch(2,Direction.DOWN);
                                         break;
 
                                         case 9:
-                                            if(!semaphores[6].tryAcquire()) {
-                                                int speed = this.speed;
-                                                this.stopTrain();
-                                                semaphores[6].acquire();
-                                                this.setSpeed(speed);
-                                            }
+                                            this.waitForSemaphore(6);
                                             this.setSwitch(2,Direction.UP);
                                         break;
 
                                         case 10:
-                                            if(!semaphores[1].tryAcquire()) {
-                                                this.setSwitch(3,Direction.DOWN);
-                                            } else {
+                                            if(semaphores[1].tryAcquire()) {
                                                 this.setSwitch(3,Direction.UP);
+                                            } else {
+                                                this.setSwitch(3,Direction.DOWN);
                                             }
                                         break;
 
@@ -267,10 +265,10 @@ public class Lab1 {
                                         break;
 
                                         case 6:
-                                            if(!semaphores[2].tryAcquire()) {
-                                                this.setSwitch(0,Direction.DOWN);
-                                            } else {
+                                            if(semaphores[2].tryAcquire()) {
                                                 this.setSwitch(0,Direction.UP);
+                                            } else {
+                                                this.setSwitch(0,Direction.DOWN);
                                             }
                                         break;
 
@@ -301,51 +299,31 @@ public class Lab1 {
                                         break;
 
                                         case 11:
-                                            if(!semaphores[6].tryAcquire()) {
-                                                int speed = this.speed;
-                                                this.stopTrain();
-                                                semaphores[6].acquire();
-                                                this.setSpeed(speed);
-                                            }
+                                            this.waitForSemaphore(6);
                                             this.setSwitch(3,Direction.DOWN);
                                         break;
 
                                         case 12:
-                                            if(!semaphores[4].tryAcquire()) {
-                                                int speed = this.speed;
-                                                this.stopTrain();
-                                                semaphores[4].acquire();
-                                                this.setSpeed(speed);
-                                            }
+                                            this.waitForSemaphore(4);
                                             this.setSwitch(1,Direction.UP);
                                         break;
 
                                         case 13:
-                                            if(!semaphores[4].tryAcquire()) {
-                                                int speed = this.speed;
-                                                this.stopTrain();
-                                                semaphores[4].acquire();
-                                                this.setSpeed(speed);
-                                            }
+                                            this.waitForSemaphore(4);
                                             this.setSwitch(1,Direction.DOWN);
                                         break;
 
                                         case 14:
-                                            if(!semaphores[5].tryAcquire()) {
-                                                this.setSwitch(2,Direction.UP);
-                                            } else {
+                                            if(semaphores[5].tryAcquire()) {
                                                 this.setSwitch(2,Direction.DOWN);
+                                            } else {
+                                                this.setSwitch(2,Direction.UP);
                                             }
                                         break;
 
                                         case 15:
                                             semaphores[1].release();
-                                            if(!semaphores[6].tryAcquire()) {
-                                                int speed = this.speed;
-                                                this.stopTrain();
-                                                semaphores[6].acquire();
-                                                this.setSpeed(speed);
-                                            }
+                                            this.waitForSemaphore(6);
                                             this.setSwitch(3,Direction.UP);
                                         break;
 
