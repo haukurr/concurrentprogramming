@@ -3,7 +3,7 @@ import java.util.concurrent.Semaphore;
 import java.util.Arrays;
 import java.util.ArrayList;
 
-public class Lab1 {
+public class Lab2 {
 
     private final Semaphore[] semaphores = new Semaphore[8];
     //0 - TOP STATION UPPER
@@ -353,7 +353,7 @@ public class Lab1 {
         }
     }
 
-    public Lab1(String[] args) {
+    public Lab2(String[] args) {
         //DEFAULTS
         int simulation_speed = 20;
         int bottom_train_speed = 5;
@@ -384,7 +384,7 @@ public class Lab1 {
     }
 
     public static void main(String[] args) {
-        new Lab1(args);
+        new Lab2(args);
     }
 
 }
