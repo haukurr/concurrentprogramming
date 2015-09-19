@@ -1,11 +1,44 @@
 import TSim.*;
-import java.util.concurrent.Semaphore;
 import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.concurrent.locks.*;
 
 public class Lab2 {
 
-    private final Semaphore[] semaphores = new Semaphore[8];
+    private class TrackMonitor {
+        private final Lock lock = new ReentrantLock();
+        private final Condition cond = lock.newCondition();
+        private boolean free;
+
+        public void enter() {
+            try {
+                this.lock.lock();
+                if(!this.free) this.cond.await();
+                this.free = false;
+                this.lock.unlock();
+            } catch(InterruptedException e) { e.printStackTrace(); }
+        }
+
+        public void leave() {
+            this.lock.lock();
+            this.free = true;
+            this.cond.signal();
+            this.lock.unlock();
+        }
+
+        public boolean tryLock() {
+            if(!this.free) return false;
+            this.enter();
+            return true;
+        }
+
+        public TrackMonitor() {
+            this.free = true;
+        }
+
+    }
+
+    private final TrackMonitor[] monitors = new TrackMonitor[8];
     //0 - TOP STATION UPPER
     //1 - TOP STATION LOWER
     //2 - BOTTOM STATION UPPER
@@ -32,9 +65,6 @@ public class Lab2 {
         private TSimInterface tsi;
         private Direction direction; //Up or down the railway
         private boolean is_turning; //state variable for turning
-
-        //Indexes of currently acquired semaphores
-        private ArrayList<Integer> acquired_semaphores; 
 
         private int sensors[][] = {
             {14,3},   /*  0 - UPPER TOP STOP */
@@ -81,42 +111,13 @@ public class Lab2 {
             return this.TIME_AT_STATION + 2 * simulation_speed * Math.abs(this.speed);
         }
 
-        //Wrapper that makes use of our list of acquired semaphores
-        private void acquireSemaphore(int i) {
-            try{
-                semaphores[i].acquire();
-                acquired_semaphores.add(i);
-            } catch(InterruptedException e) { e.printStackTrace(); }
-        }
-
-        //Wrapper that makes use of our list of acquired semaphores
-        private boolean tryAcquireSemaphore(int i) {
-            if(semaphores[i].tryAcquire()){
-                acquired_semaphores.add(i);
-                return true;
-            }
-            return false;
-        }
-
-        //Wrapper that makes use of our list of acquired semaphores
-        private void releaseSemaphore(int i) {
-            int index = acquired_semaphores.indexOf(i);
-            if(index >= 0) {
-                acquired_semaphores.remove(index);
-                semaphores[i].release();
-            }
-        }
-
-        //Stops the train until a semaphore of the given index can be acquired
-        private void waitForSemaphore(int i) {
-            if(acquired_semaphores.indexOf(i) != -1) {
-                //Already have it no need to ask for it again
-                return;
-            }
-            if(!this.tryAcquireSemaphore(i)) {
+        //Stops the train until a monitor of the given index can be acquired
+        private void waitForMonitor(int i) {
+            TrackMonitor monitor = monitors[i];
+            if(!monitor.tryLock()) {
                 int speed = this.speed;
                 this.stopTrain();
-                this.acquireSemaphore(i);
+                monitor.enter();
                 this.setSpeed(speed);
             }
         }
@@ -129,7 +130,6 @@ public class Lab2 {
             this.direction = d;
             this.is_turning = false;
             this.setSpeed(train_speed);
-            this.acquired_semaphores = new ArrayList<>();
         }
 
         //Sets speed of train
@@ -195,21 +195,21 @@ public class Lab2 {
                                         break;
 
                                         case 4:
-                                            this.waitForSemaphore(4);
+                                            this.waitForMonitor(4);
                                             this.setSwitch(0,Direction.DOWN);
                                         break;
 
                                         case 5:
-                                            this.waitForSemaphore(4);
+                                            this.waitForMonitor(4);
                                             this.setSwitch(0,Direction.UP);
                                         break;
 
                                         case 6:
-                                            this.releaseSemaphore(2);
+                                            monitors[2].leave();
                                         break;
 
                                         case 7:
-                                            if(this.tryAcquireSemaphore(5)) {
+                                            if(monitors[5].tryLock()) {
                                                 this.setSwitch(1,Direction.UP);
                                             } else {
                                                 this.setSwitch(1,Direction.DOWN);
@@ -217,17 +217,17 @@ public class Lab2 {
                                         break;
 
                                         case 8:
-                                            this.waitForSemaphore(6);
+                                            this.waitForMonitor(6);
                                             this.setSwitch(2,Direction.DOWN);
                                         break;
 
                                         case 9:
-                                            this.waitForSemaphore(6);
+                                            this.waitForMonitor(6);
                                             this.setSwitch(2,Direction.UP);
                                         break;
 
                                         case 10:
-                                            if(this.tryAcquireSemaphore(1)) {
+                                            if(monitors[1].tryLock()) {
                                                 this.setSwitch(3,Direction.UP);
                                             } else {
                                                 this.setSwitch(3,Direction.DOWN);
@@ -235,25 +235,25 @@ public class Lab2 {
                                         break;
 
                                         case 11:
-                                            this.releaseSemaphore(6);
-                                            this.waitForSemaphore(7);
+                                            monitors[6].leave();
+                                            this.waitForMonitor(7);
                                         break;
 
                                         case 12:
-                                            this.releaseSemaphore(4);
+                                            monitors[4].leave();
                                         break;
 
                                         case 13:
-                                            this.releaseSemaphore(4);
+                                            monitors[4].leave();
                                         break;
 
                                         case 14:
-                                            this.releaseSemaphore(5);
+                                            monitors[5].leave();
                                         break;
 
                                         case 15:
-                                            this.releaseSemaphore(6);
-                                            this.waitForSemaphore(7);
+                                            monitors[6].leave();
+                                            this.waitForMonitor(7);
                                         break;
 
                                     }
@@ -262,11 +262,11 @@ public class Lab2 {
                                     switch(i) { //Index of sensor
 
                                         case 0:
-                                            this.waitForSemaphore(7);
+                                            this.waitForMonitor(7);
                                         break;
 
                                         case 1:
-                                            this.waitForSemaphore(7);
+                                            this.waitForMonitor(7);
                                         break;
 
                                         case 2:
@@ -278,15 +278,15 @@ public class Lab2 {
                                         break;
 
                                         case 4:
-                                            this.releaseSemaphore(4);
+                                            monitors[4].leave();
                                         break;
 
                                         case 5:
-                                            this.releaseSemaphore(4);
+                                            monitors[4].leave();
                                         break;
 
                                         case 6:
-                                            if(this.tryAcquireSemaphore(2)) {
+                                            if(monitors[2].tryLock()) {
                                                 this.setSwitch(0,Direction.UP);
                                             } else {
                                                 this.setSwitch(0,Direction.DOWN);
@@ -294,41 +294,41 @@ public class Lab2 {
                                         break;
 
                                         case 7:
-                                            this.releaseSemaphore(5);
+                                            monitors[5].leave();
                                         break;
 
                                         case 8:
-                                            this.releaseSemaphore(6);
+                                            monitors[6].leave();
                                             this.setSwitch(2,Direction.DOWN);
                                         break;
 
                                         case 9:
-                                            this.releaseSemaphore(6);
+                                            monitors[6].leave();
                                             this.setSwitch(2,Direction.UP);
                                         break;
 
                                         case 10:
-                                            this.releaseSemaphore(1);
+                                            monitors[1].leave();
                                         break;
 
                                         case 11:
-                                            this.releaseSemaphore(7);
-                                            this.waitForSemaphore(6);
+                                            monitors[7].leave();
+                                            this.waitForMonitor(6);
                                             this.setSwitch(3,Direction.DOWN);
                                         break;
 
                                         case 12:
-                                            this.waitForSemaphore(4);
+                                            this.waitForMonitor(4);
                                             this.setSwitch(1,Direction.UP);
                                         break;
 
                                         case 13:
-                                            this.waitForSemaphore(4);
+                                            this.waitForMonitor(4);
                                             this.setSwitch(1,Direction.DOWN);
                                         break;
 
                                         case 14:
-                                            if(this.tryAcquireSemaphore(5)) {
+                                            if(monitors[5].tryLock()) {
                                                 this.setSwitch(2,Direction.DOWN);
                                             } else {
                                                 this.setSwitch(2,Direction.UP);
@@ -336,8 +336,8 @@ public class Lab2 {
                                         break;
 
                                         case 15:
-                                            this.releaseSemaphore(7);
-                                            this.waitForSemaphore(6);
+                                            monitors[7].leave();
+                                            this.waitForMonitor(6);
                                             this.setSwitch(3,Direction.UP);
                                         break;
 
@@ -372,8 +372,8 @@ public class Lab2 {
             simulation_speed = Integer.parseInt(args[2]);
         } catch(ArrayIndexOutOfBoundsException e){}
 
-        for (int i = 0; i < semaphores.length; i++) {
-            semaphores[i] = new Semaphore(1,true);
+        for (int i = 0; i < monitors.length; i++) {
+            monitors[i] = new TrackMonitor();
         }
 
         this.top_train = new Train(1, top_train_speed, Direction.DOWN);
