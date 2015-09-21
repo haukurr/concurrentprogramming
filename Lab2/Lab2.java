@@ -27,8 +27,10 @@ public class Lab2 {
         }
 
         public boolean tryLock() {
+            this.lock.lock();
             if(!this.free) return false;
             this.enter();
+            this.lock.unlock();
             return true;
         }
 
