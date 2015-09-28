@@ -27,11 +27,16 @@ public class Lab2 {
         }
 
         public boolean tryLock() {
-            this.lock.lock();
-            if(!this.free) return false;
-            this.enter();
-            this.lock.unlock();
-            return true;
+            try {
+                this.lock.lock();
+                if(this.free) {
+                    this.enter();
+                    return true;
+                }
+            } finally {
+                this.lock.unlock();
+            }
+            return false;
         }
 
         public TrackMonitor() {
