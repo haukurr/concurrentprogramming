@@ -1,0 +1,6 @@
+Just needed one conditional variable for telling whether the track is free or not.
+
+There are three methods:
+enter() - Occupies a track.
+leave() - Free's a track.
+tryLock() - If track is free, occupy it and return true, otherwise return false.
