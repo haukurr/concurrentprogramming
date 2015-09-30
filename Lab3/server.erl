@@ -4,9 +4,25 @@
 
 % Produce initial state
 initial_state(ServerName) ->
-    #server_st{}.
+    #server_st{name = ServerName, users = []}.
 
 %% ---------------------------------------------------------------------------
+
+loop(St, {connect, Nick, Pid}) ->
+    Users = St#server_st.users,
+    case lists:keyfind(Nick, 2, Users) of
+        false ->
+            {ok,St#server_st{users = [{Pid, Nick} | Users]}};
+        _ ->
+            {nick_in_use, St}
+    end;
+
+loop(St, {disconnect, Nick, Pid}) ->
+    Users = St#server_st.users,
+    case lists:member({Pid, Nick}, Users) of
+        true -> {ok,St#server_st{users = lists:delete({Pid,Nick}, Users)}};
+        _ -> {not_connected, St}
+    end;
 
 loop(St, Request) ->
     io:fwrite("Server received: ~p~n", [Request]),

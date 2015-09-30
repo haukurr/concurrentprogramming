@@ -4,7 +4,7 @@
 
 %% Produce initial state
 initial_state(Nick, GUIName) ->
-    #client_st { gui = GUIName }.
+    #client_st { gui = GUIName, nick = Nick, server = undefined}.
 
 %% ---------------------------------------------------------------------------
 
@@ -12,18 +12,39 @@ initial_state(Nick, GUIName) ->
 
 %% Connect to server
 loop(St, {connect, Server}) ->
-    Data = "hello?",
-    io:fwrite("Client is sending: ~p~n", [Data]),
-    ServerAtom = list_to_atom(Server),
-    Response = genserver:request(ServerAtom, Data),
-    io:fwrite("Client received: ~p~n", [Response]),
-    % {ok, St} ;
-    {{error, not_implemented, "Not implemented"}, St} ;
+    case St#client_st.server of
+        undefined ->
+            ServerAtom = list_to_atom(Server),
+            case whereis(ServerAtom) of
+                undefined -> {{error,unknown_host, "Unknown host"}, St};
+                _ ->
+                    Response = genserver:request(ServerAtom, {connect,St#client_st.nick, self()}),
+                    case Response of
+                        ok ->          { ok, St#client_st{server = Server} };
+                        nick_in_use -> { {error, nick_in_use, "Nick already in use"}, St}
+                    end
+            end;
+        _ -> {{error, already_connected, "Already connected to a server"},St}
+    end;
 
 %% Disconnect from server
 loop(St, disconnect) ->
-    % {ok, St} ;
-    {{error, not_implemented, "Not implemented"}, St} ;
+    Server = St#client_st.server,
+    Error = { {error, not_connected, "You are not connected to a server!"}, St},
+    case Server of
+        undefined -> Error;
+        _ ->
+            ServerAtom = list_to_atom(Server),
+            case whereis(ServerAtom) of
+                undefined -> {{error,unknown_host, "Unknown host"}, St};
+                _ ->
+                    Response = genserver:request(ServerAtom, {disconnect,St#client_st.nick, self()}),
+                    case Response of
+                        ok ->            { ok, St#client_st{server = undefined} };
+                        not_connected -> Error
+                    end
+            end
+    end;
 
 % Join channel
 loop(St, {join, Channel}) ->
