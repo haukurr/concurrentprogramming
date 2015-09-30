@@ -107,14 +107,18 @@ loop(St, whoami) ->
 
 %% Change nick
 loop(St, {nick, Nick}) ->
-    request(St, {nick, Nick, self()},
-        fun(Response) ->
-            case Response of
-                nick_in_use -> { {error, nick_in_use, "Nick already in use"}, St};
-                ok ->          { ok, St }
-            end
-        end
-    );
+    NewSt = { ok, St#client_st{nick=Nick} }
+    case Server of
+        undefined -> NewSt
+        _ ->
+            request(St, {nick, Nick, self()},
+                fun(Response) ->
+                    case Response of
+                        nick_in_use -> { {error, nick_in_use, "Nick already in use"}, St};
+                        ok ->          NewSt
+                    end
+                end
+            );
 
 %% Incoming message
 loop(St = #client_st { gui = GUIName }, {incoming_msg, Channel, Name, Msg}) ->
