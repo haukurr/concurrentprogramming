@@ -97,13 +97,17 @@ loop(St, {msg_from_GUI, Channel, Msg}) ->
 
 %% Get current nick
 loop(St, whoami) ->
-    request(St, {whoami, self()},
-        fun(Response) ->
-            case Response of
-                Nick -> { Nick, St }
-            end
-        end
-    );
+    case St#client_st.server of
+        undefined -> { St#client_st.nick,St };
+        _ ->
+            request(St, {whoami, self()},
+                fun(Response) ->
+                    case Response of
+                        Nick -> { Nick, St }
+                    end
+                end
+            )
+    end;
 
 %% Change nick
 loop(St, {nick, Nick}) ->
