@@ -24,13 +24,6 @@ loop(St, {disconnect, Nick, Pid}) ->
         _ -> {not_connected, St}
     end;
 
-loop(St,{join, Nick, Channel, Pid}) ->
-    Channels = St#client_st.channels,
-    case lists:member(Channel, Channels) of
-        false -> {};
-        true ->  {}
-    end;
-
 loop(St,{whoami, Pid}) ->
     Users = St#server_st.users,
     case lists:keyfind(Pid, 1, Users) of

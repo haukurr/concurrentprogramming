@@ -66,13 +66,34 @@ loop(St, {join, Channel}) ->
 
 %% Leave channel
 loop(St, {leave, Channel}) ->
-    % {ok, St} ;
-    {{error, not_implemented, "Not implemented"}, St};
+    request(St, {leave, Channel, self()},
+        fun(Response) ->
+            Channels = St#client_st.channels,
+            UpdatedChannelSt = St#client_st{channels = lists:delete(Channel, Channels)},
+            case Response of
+                ok ->              { ok, UpdatedChannelSt};
+                not_joined ->      {{error, not_joined, "You are not on this channel!"}, UpdatedChannelSt}
+            end
+        end
+    );
 
 % Sending messages
 loop(St, {msg_from_GUI, Channel, Msg}) ->
-    % {ok, St} ;
-    {{error, not_implemented, "Not implemented"}, St};
+    Channels = St#client_st.channels,
+    UpdatedChannelSt = St#client_st{channels = lists:delete(Channel, Channels)},
+    Error = {{error, not_joined, "You are not on this channel!"}, UpdatedChannelSt},
+    case lists:member(Channel, Channels) of
+        true ->
+            request(St, {msg_from_GUI, Channel, Msg, self()},
+                fun(Response) ->
+                    case Response of
+                        ok ->         { ok, St};
+                        not_joined -> Error
+                    end
+                end
+            );
+        false -> Error
+    end;
 
 %% Get current nick
 loop(St, whoami) ->
