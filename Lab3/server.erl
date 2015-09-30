@@ -45,7 +45,8 @@ loop(St,{nick, Nick, Pid}) ->
             case lists:keyfind(Pid, 1, Users) of
                 false -> {not_connected, St};
                 _ -> {ok, St#server_st{users = lists:keyreplace(Pid,1,St#server_st.users,{Pid,Nick})}}
-            end
+            end;
+        _ -> {nick_in_use, St}
     end;
 
 loop(St, Request) ->

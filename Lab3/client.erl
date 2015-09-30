@@ -6,6 +6,21 @@
 initial_state(Nick, GUIName) ->
     #client_st { gui = GUIName, nick = Nick, server = undefined, channels = []}.
 
+request(St,Data,Callback) ->
+    Server = St#client_st.server,
+    Error = { {error, not_connected, "You are not connected to a server!"},
+               St#client_st{server = undefined, channels = []}},
+    case Server of
+        undefined -> Error;
+        _ ->
+            ServerAtom = list_to_atom(Server),
+            Response = genserver:request(ServerAtom, Data),
+            case Response of
+                not_connected -> Error;
+                _ ->             Callback(Response)
+            end
+    end.
+
 %% ---------------------------------------------------------------------------
 
 %% loop handles each kind of request from GUI
@@ -29,74 +44,56 @@ loop(St, {connect, Server}) ->
 
 %% Disconnect from server
 loop(St, disconnect) ->
-    Server = St#client_st.server,
-    Error = { {error, not_connected, "You are not connected to a server!"}, St},
-    case Server of
-        undefined -> Error;
-        _ ->
-            ServerAtom = list_to_atom(Server),
-            Response = genserver:request(ServerAtom, {disconnect,St#client_st.nick, self()}),
+    request(St, {disconnect,St#client_st.nick, self() },
+        fun(Response) ->
             case Response of
-                ok ->            { ok, St#client_st{server = undefined} };
-                not_connected -> Error
+                ok -> { ok, St#client_st{server = undefined} }
             end
-    end;
+        end
+    );
 
 % Join channel
 loop(St, {join, Channel}) ->
-    Server = St#client_st.server,
-    Channels= St#client_st.channels,
-    Error = { {error, not_connected, "You are not connected to a server!"}, St},
-    case Server of
-        undefined -> Error;
-        _ ->
-            ServerAtom = list_to_atom(Server),
-            Response = genserver:request(ServerAtom, {join,St#client_st.nick, Channel, self()}),
+    request(St, {join,St#client_st.nick, Channel, self()},
+        fun(Response) ->
+            Channels = St#client_st.channels,
             case Response of
                 ok ->              { ok, St#client_st{channels = [Channel | Channels]} };
                 already_joined ->  {{error, already_joined, "Already joined channel!"},St}
             end
-    end;
+        end
+    );
 
 %% Leave channel
 loop(St, {leave, Channel}) ->
     % {ok, St} ;
-    {{error, not_implemented, "Not implemented"}, St} ;
+    {{error, not_implemented, "Not implemented"}, St};
 
 % Sending messages
 loop(St, {msg_from_GUI, Channel, Msg}) ->
     % {ok, St} ;
-    {{error, not_implemented, "Not implemented"}, St} ;
+    {{error, not_implemented, "Not implemented"}, St};
 
 %% Get current nick
 loop(St, whoami) ->
-    Server = St#client_st.server,
-    Error = { {error, not_connected, "You are not connected to a server!"}, St},
-    case Server of
-        undefined -> Error;
-        _ ->
-            ServerAtom = list_to_atom(Server),
-            Response = genserver:request(ServerAtom, { whoami, self() }),
+    request(St, {whoami, self()},
+        fun(Response) ->
             case Response of
-                not_connected -> Error;
-                Nick ->          { Nick, St }
+                Nick -> { Nick, St }
             end
-    end;
+        end
+    );
 
 %% Change nick
 loop(St, {nick, Nick}) ->
-    Server = St#client_st.server,
-    Error = { {error, not_connected, "You are not connected to a server!"}, St},
-    case Server of
-        undefined -> Error;
-        _ ->
-            ServerAtom = list_to_atom(Server),
-            Response = genserver:request(ServerAtom, { nick, Nick, self() }),
+    request(St, {nick, Nick, self()},
+        fun(Response) ->
             case Response of
-                already_taken -> Error;
-                _ ->             { ok, St }
+                nick_in_use -> { {error, nick_in_use, "Nick already in use"}, St};
+                ok ->          { ok, St }
             end
-    end;
+        end
+    );
 
 %% Incoming message
 loop(St = #client_st { gui = GUIName }, {incoming_msg, Channel, Name, Msg}) ->
