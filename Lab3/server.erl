@@ -17,11 +17,11 @@ loop(St, {connect, Nick, Pid}) ->
             {nick_in_use, St}
     end;
 
-loop(St, {disconnect, Nick, Pid}) ->
+loop(St, {disconnect, Pid}) ->
     Users = St#server_st.users,
-    case lists:member({Pid, Nick}, Users) of
-        true -> {ok,St#server_st{users = lists:delete({Pid,Nick}, Users)}};
-        _ -> {not_connected, St}
+    case lists:keyfind(Pid, 1, Users) of
+        false -> {not_connected, St};
+        {_,Nick} -> {ok,St#server_st{users = lists:delete({Pid,Nick}, Users)}}
     end;
 
 loop(St,{whoami, Pid}) ->

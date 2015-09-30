@@ -44,7 +44,7 @@ loop(St, {connect, Server}) ->
 
 %% Disconnect from server
 loop(St, disconnect) ->
-    request(St, {disconnect,St#client_st.nick, self() },
+    request(St, {disconnect, self() },
         fun(Response) ->
             case Response of
                 ok -> { ok, St#client_st{server = undefined} }
@@ -107,9 +107,9 @@ loop(St, whoami) ->
 
 %% Change nick
 loop(St, {nick, Nick}) ->
-    NewSt = { ok, St#client_st{nick=Nick} }
-    case Server of
-        undefined -> NewSt
+    NewSt = { ok, St#client_st{nick=Nick} },
+    case St#client_st.server of
+        undefined -> NewSt;
         _ ->
             request(St, {nick, Nick, self()},
                 fun(Response) ->
@@ -118,7 +118,8 @@ loop(St, {nick, Nick}) ->
                         ok ->          NewSt
                     end
                 end
-            );
+            )
+    end;
 
 %% Incoming message
 loop(St = #client_st { gui = GUIName }, {incoming_msg, Channel, Name, Msg}) ->
