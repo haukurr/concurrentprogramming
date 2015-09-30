@@ -4,7 +4,7 @@
 
 %% Produce initial state
 initial_state(Nick, GUIName) ->
-    #client_st { gui = GUIName, nick = Nick, server = undefined}.
+    #client_st { gui = GUIName, nick = Nick, server = undefined, channels = []}.
 
 %% ---------------------------------------------------------------------------
 
@@ -35,21 +35,28 @@ loop(St, disconnect) ->
         undefined -> Error;
         _ ->
             ServerAtom = list_to_atom(Server),
-            case whereis(ServerAtom) of
-                undefined -> {{error,unknown_host, "Unknown host"}, St};
-                _ ->
-                    Response = genserver:request(ServerAtom, {disconnect,St#client_st.nick, self()}),
-                    case Response of
-                        ok ->            { ok, St#client_st{server = undefined} };
-                        not_connected -> Error
-                    end
+            Response = genserver:request(ServerAtom, {disconnect,St#client_st.nick, self()}),
+            case Response of
+                ok ->            { ok, St#client_st{server = undefined} };
+                not_connected -> Error
             end
     end;
 
 % Join channel
 loop(St, {join, Channel}) ->
-    % {ok, St} ;
-    {{error, not_implemented, "Not implemented"}, St} ;
+    Server = St#client_st.server,
+    Channels= St#client_st.channels,
+    Error = { {error, not_connected, "You are not connected to a server!"}, St},
+    case Server of
+        undefined -> Error;
+        _ ->
+            ServerAtom = list_to_atom(Server),
+            Response = genserver:request(ServerAtom, {join,St#client_st.nick, Channel, self()}),
+            case Response of
+                ok ->              { ok, St#client_st{channels = [Channel | Channels]} };
+                already_joined ->  {{error, already_joined, "Already joined channel!"},St}
+            end
+    end;
 
 %% Leave channel
 loop(St, {leave, Channel}) ->
@@ -63,13 +70,33 @@ loop(St, {msg_from_GUI, Channel, Msg}) ->
 
 %% Get current nick
 loop(St, whoami) ->
-    % {"nick", St} ;
-    {{error, not_implemented, "Not implemented"}, St} ;
+    Server = St#client_st.server,
+    Error = { {error, not_connected, "You are not connected to a server!"}, St},
+    case Server of
+        undefined -> Error;
+        _ ->
+            ServerAtom = list_to_atom(Server),
+            Response = genserver:request(ServerAtom, { whoami, self() }),
+            case Response of
+                not_connected -> Error;
+                Nick ->          { Nick, St }
+            end
+    end;
 
 %% Change nick
 loop(St, {nick, Nick}) ->
-    % {ok, St} ;
-    {{error, not_implemented, "Not implemented"}, St} ;
+    Server = St#client_st.server,
+    Error = { {error, not_connected, "You are not connected to a server!"}, St},
+    case Server of
+        undefined -> Error;
+        _ ->
+            ServerAtom = list_to_atom(Server),
+            Response = genserver:request(ServerAtom, { nick, Nick, self() }),
+            case Response of
+                already_taken -> Error;
+                _ ->             { ok, St }
+            end
+    end;
 
 %% Incoming message
 loop(St = #client_st { gui = GUIName }, {incoming_msg, Channel, Name, Msg}) ->
