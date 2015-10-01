@@ -54,7 +54,7 @@ loop(St, disconnect) ->
 
 % Join channel
 loop(St, {join, Channel}) ->
-    request(St, {join,St#client_st.nick, Channel, self()},
+    request(St, {join, Channel, self()},
         fun(Response) ->
             Channels = St#client_st.channels,
             case Response of

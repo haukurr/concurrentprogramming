@@ -1,12 +1,19 @@
 -module(server).
--export([loop/2, initial_state/1]).
+-export([loop/2, initial_state/1, channel/0]).
 -include_lib("./defs.hrl").
 
 % Produce initial state
 initial_state(ServerName) ->
-    #server_st{name = ServerName, users = []}.
+    #server_st{name = ServerName, users = [], channels = []}.
 
 %% ---------------------------------------------------------------------------
+
+channel() ->
+    receive
+        {message,Message, Pid} ->
+            Pid ! {stuff,"HELLO WORLD"}
+    end,
+    channel().
 
 loop(St, {connect, Nick, Pid}) ->
     Users = St#server_st.users,
@@ -23,6 +30,30 @@ loop(St, {disconnect, Pid}) ->
         false -> {not_connected, St};
         {_,Nick} -> {ok,St#server_st{users = lists:delete({Pid,Nick}, Users)}}
     end;
+
+
+loop(St, {join, [_|Channel], Pid}) ->
+    Channels = St#server_st.channels,
+    case lists:keyfind(Channel, 1, Channels) of
+        false ->
+            register(list_to_atom(Channel),spawn(server,channel,[])),
+            list_to_atom(Channel) ! {message,"HELLO",self()},
+            receive
+                _ -> io:fwrite("RECEIVED")
+            end,
+            { ok, St#server_st{channels = [ {Channel,[Pid] } | Channels] } };
+        {_, Users}-> {ok, St#server_st{users = lists:keyreplace(Channel,1,Channels,{Channel,[Pid | Users]})}}
+    end;
+
+loop(St, {msg_from_GUI, [_|Channel], Msg, Pid} ) ->
+    Channels = St#server_st.channels,
+    case lists:keyfind(Channel, 1, Channels) of
+        false -> {not_joined, St};
+        _ ->
+            %list_to_atom(Channel) ! {message, Msg, Pid},
+            {ok,St}
+    end;
+
 
 loop(St,{whoami, Pid}) ->
     Users = St#server_st.users,
