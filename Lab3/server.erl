@@ -9,6 +9,8 @@ initial_state(ServerName) ->
 %% ---------------------------------------------------------------------------
 
 % Function for channel process
+
+%Join channel
 channel(St, {join, UserPid, Nick}) ->
     Users = St#channel_st.users,
     case lists:keyfind(UserPid,1,Users) of
@@ -17,6 +19,7 @@ channel(St, {join, UserPid, Nick}) ->
         _ -> {user_already_joined,St}
     end;
 
+%Leave channel
 channel(St, {leave, UserPid}) ->
     Users = St#channel_st.users,
     case lists:keyfind(UserPid,1,Users) of
@@ -24,6 +27,7 @@ channel(St, {leave, UserPid}) ->
         _ -> {ok,St#channel_st{users = lists:keydelete(UserPid,1,Users)}}
     end;
 
+%Change nickname on channel
 channel(St, {nick, UserPid, Nick}) ->
     Users = St#channel_st.users,
     case lists:keyfind(UserPid, 1, Users) of
@@ -31,6 +35,7 @@ channel(St, {nick, UserPid, Nick}) ->
         _ -> {ok,St#channel_st{users = lists:keyreplace(UserPid,1,Users,{UserPid,Nick})}}
     end;
 
+%Check if user is on channel by pid
 channel(St, {is_here, UserPid}) ->
     Users = St#channel_st.users,
     case lists:keyfind(UserPid,1,Users) of
@@ -38,6 +43,7 @@ channel(St, {is_here, UserPid}) ->
         _ -> {yes,St}
     end;
 
+%Send a message to all users on a channel
 channel(St, {message, Message, Pid}) ->
     Channel = St#channel_st.name,
     Users = St#channel_st.users,
@@ -49,16 +55,19 @@ channel(St, {message, Message, Pid}) ->
                     spawn(fun() ->
                         genserver:requestAsync(CurrentPid, {incoming_msg, "#" ++ Channel, Nick, Message})
                     end)
-                end, lists:delete({Pid,Nick},Users)),
+                end, lists:delete({Pid,Nick},Users)), %Skip the owner of the msg
             {ok,St}
     end.
 
+%Wrapper for sending requests to channels
 channelRequest(Channel,Data) ->
     genserver:request(list_to_atom(Channel ++ "_channel"),Data).
 
+%Wrapper for sending requests to channels asynchronously
 channelRequestAsync(Channel,Data) ->
     genserver:requestAsync(list_to_atom(Channel ++ "_channel"),Data).
 
+%Checks if user is in any of the given channels
 user_in_a_channel(_,[]) -> false;
 user_in_a_channel(Pid,[Channel | Channels]) ->
     case channelRequest(Channel,{is_here,Pid}) of
@@ -99,7 +108,7 @@ loop(St, {join, [_|Channel], Pid}) ->
     case lists:member(Channel, Channels) of
         false ->
             genserver:start(list_to_atom(Channel ++ "_channel"), 
-                #channel_st{users=[{Pid,Nick}],name=Channel}, 
+                #channel_st{users=[{Pid,Nick}],name=Channel},
                 fun server:channel/2),
             { whereis(list_to_atom(Channel ++ "_channel")), St#server_st{channels = [ Channel | Channels] } };
         true ->
