@@ -8,19 +8,65 @@ initial_state(ServerName) ->
 
 %% ---------------------------------------------------------------------------
 
-% Function for channel process
-channel(Channel) ->
+check_user(_,[]) -> false;
+check_user(Pid,[Channel | Channels]) ->
+    list_to_atom(Channel ++ "_channel") ! {is_here,Pid,self()},
     receive
-        {message,Message, Pid, St} ->
-            {_, Users} = lists:keyfind(Channel,1, St#server_st.channels),
-            {_, Username}  = lists:keyfind(Pid,1, St#server_st.users),
+        yes -> true;
+        no -> check_user(Pid,Channels)
+    end.
+
+% Function for channel process
+channel(St) ->
+    receive
+        {join, {UserPid,Nick}, Pid} -> 
+            Users = St#channel_st.users,
+            case lists:keyfind(UserPid,1,Users) of
+                false ->
+                    NewSt = St#channel_st{users = [{UserPid,Nick} | Users]},
+                    Pid ! {ok,NewSt},
+                    channel(NewSt);
+                _ ->
+                    Pid ! {user_already_joined,St}
+            end;
+        {leave, UserPid, Pid} ->
+            Users = St#channel_st.users,
+            case lists:keyfind(UserPid,1,Users) of
+                false ->
+                    Pid ! {user_not_joined,St};
+                _ ->
+                    NewSt = St#channel_st{users = lists:keydelete(UserPid,1,Users)},
+                    Pid ! {ok,NewSt},
+                    channel(NewSt)
+            end;
+        {nick, UserPid, Nick} ->
+            Users = St#channel_st.users,
+            case lists:keyfind(UserPid, 1, Users) of
+                false ->
+                    channel(St);
+                _ ->
+                    NewSt = St#channel_st{users = lists:keyreplace(UserPid,1,Users,{UserPid,Nick})},
+                    channel(NewSt)
+            end;
+        {is_here, UserPid, Pid} ->
+            Users = St#channel_st.users,
+            case lists:keyfind(UserPid,1,Users) of
+                false ->
+                    Pid ! no;
+                _ ->
+                    Pid ! yes
+            end;
+        {message,Message, Pid} ->
+            Channel = St#channel_st.name,
+            Users = St#channel_st.users,
+            {_, Nick}  = lists:keyfind(Pid,1, Users),
             lists:foreach(
-              fun(CurrentPid) ->
-                  genserver:requestAsync(CurrentPid, {incoming_msg, "#" ++ Channel, Username, Message})
+              fun({CurrentPid,_}) ->
+                  genserver:requestAsync(CurrentPid, {incoming_msg, "#" ++ Channel, Nick, Message})
               end,
-            lists:delete(Pid,Users))
+            lists:delete({Pid,Nick},Users))
     end,
-    channel(Channel).
+    channel(St).
 
 % User connects to server, must have unqiue nickname.
 loop(St, {connect, Nick, Pid}) ->
@@ -32,6 +78,8 @@ loop(St, {connect, Nick, Pid}) ->
             {user_already_connected, St}
     end;
 
+
+
 % User disconnects from server.
 loop(St, {disconnect, Pid}) ->
     Users = St#server_st.users,
@@ -39,11 +87,7 @@ loop(St, {disconnect, Pid}) ->
     case lists:keyfind(Pid, 1, Users) of
         false -> {user_not_connected, St};
         {_,Nick} ->
-            case lists:any(fun(X) -> X end, lists:map(
-                fun({_,ChannelUsers}) ->
-                     lists:member(Pid,ChannelUsers)
-                end,
-            Channels)) of
+            case check_user(Pid,Channels) of
                 true ->
                     {leave_channels_first,St};
                 false ->
@@ -55,42 +99,40 @@ loop(St, {disconnect, Pid}) ->
 % Consider that #channelname, where "channelname" must not already be a registered atom.
 loop(St, {join, [_|Channel], Pid}) ->
     Channels = St#server_st.channels,
-    case lists:keyfind(Channel, 1, Channels) of
+    {_, Nick}  = lists:keyfind(Pid,1, St#server_st.users),
+    case lists:member(Channel, Channels) of
         false ->
-            register(list_to_atom(Channel ++ "_channel"),spawn(server,channel,[Channel])),
-            { ok, St#server_st{channels = [ {Channel,[Pid] } | Channels] } };
-        {_, Users} ->
-            case lists:member(Pid,Users) of
-                false ->
-                    {ok, St#server_st{channels = lists:keyreplace(Channel,1,Channels,{Channel,[Pid | Users]})}};
-                true ->
-                    {user_already_joined, St}
+            register(list_to_atom(Channel ++ "_channel"),spawn(server,channel,
+                        [#channel_st{users=[{Pid,Nick}],name=Channel}])),
+            { ok, St#server_st{channels = [ Channel | Channels] } };
+        true ->
+            list_to_atom(Channel ++ "_channel") ! {join,{Pid,Nick},self()},
+            receive
+                {ok,_} -> {ok,St};
+                {user_already_joined,_} -> {user_already_joined, St}
             end
     end;
 
 % User leaves a channel.
 loop(St, {leave, [_|Channel], Pid}) ->
     Channels = St#server_st.channels,
-    case lists:keyfind(Channel, 1, Channels) of
+    case lists:member(Channel, Channels) of
         false      -> { user_not_joined, St }; % Channel does not exist.
-        {_, Users} -> 
-            case lists:member(Pid, Users) of
-                false -> { user_not_joined, St }; % User is not in channel.
-                _     -> 
-                    {ok, 
-                        St#server_st{channels =
-                            lists:keyreplace( Channel, 1, Channels, {Channel, lists:delete(Pid, Users)} ) }
-                    }
+        true ->
+            list_to_atom(Channel ++ "_channel") ! {leave,Pid,self()},
+            receive
+                {ok,_} -> {ok,St};
+                {user_not_joined,_} -> {user_not_joined, St}
             end
     end;
 
 % The server recieves a message from a client.
 loop(St, {msg_from_GUI, [_|Channel], Msg, Pid} ) ->
     Channels = St#server_st.channels,
-    case lists:keyfind(Channel, 1, Channels) of
+    case lists:member(Channel, Channels) of
         false -> {user_not_joined, St};
         _ ->
-            list_to_atom(Channel ++ "_channel") ! {message, Msg, Pid, St},
+            list_to_atom(Channel ++ "_channel") ! {message, Msg, Pid},
             {ok,St}
     end;
 
@@ -105,11 +147,18 @@ loop(St,{whoami, Pid}) ->
 % A client changes its Nickname on the server, the new nick must be not taken.
 loop(St,{nick, Nick, Pid}) ->
     Users = St#server_st.users,
+    Channels = St#server_st.channels,
     case lists:keyfind(Nick, 2, Users) of
         false ->
             case lists:keyfind(Pid, 1, Users) of
                 false -> {user_not_connected, St};
-                _ -> {ok, St#server_st{users = lists:keyreplace(Pid,1,St#server_st.users,{Pid,Nick})}}
+                _ -> 
+                    lists:foreach(
+                        fun(Channel) ->
+                            list_to_atom(Channel ++ "_channel") ! {nick, Pid, Nick}
+                        end,
+                    Channels),
+                    {ok, St#server_st{users = lists:keyreplace(Pid,1,St#server_st.users,{Pid,Nick})}}
             end;
         _ -> {nick_taken, St}
     end;
