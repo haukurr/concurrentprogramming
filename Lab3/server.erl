@@ -1,5 +1,5 @@
 -module(server).
--export([loop/2, initial_state/1, channel/0]).
+-export([loop/2, initial_state/1, channel/1]).
 -include_lib("./defs.hrl").
 
 % Produce initial state
@@ -9,12 +9,18 @@ initial_state(ServerName) ->
 %% ---------------------------------------------------------------------------
 
 % Function for channel process
-channel() ->
+channel(Channel) ->
     receive
-        {message,Message, Pid} ->
-            Pid ! {stuff,"HELLO WORLD"}
+        {message,Message, Pid, St} ->
+            {_, Users} = lists:keyfind(Channel,1, St#server_st.channels),
+            {_, Username}  = lists:keyfind(Pid,1, St#server_st.users),
+            lists:foreach(
+              fun(CurrentPid) ->
+                  genserver:requestAsync(CurrentPid, {incoming_msg, "#" ++ Channel, Username, Message})
+              end,
+            lists:delete(Pid,Users))
     end,
-    channel().
+    channel(Channel).
 
 % User connects to server, must have unqiue nickname.
 loop(St, {connect, Nick, Pid}) ->
@@ -23,15 +29,26 @@ loop(St, {connect, Nick, Pid}) ->
         false ->
             {ok,St#server_st{users = [{Pid, Nick} | Users]}};
         _ ->
-            {nick_in_use, St}
+            {user_already_connected, St}
     end;
 
 % User disconnects from server.
 loop(St, {disconnect, Pid}) ->
     Users = St#server_st.users,
+    Channels = St#server_st.channels,
     case lists:keyfind(Pid, 1, Users) of
-        false -> {not_connected, St};
-        {_,Nick} -> {ok,St#server_st{users = lists:delete({Pid,Nick}, Users)}}
+        false -> {user_not_connected, St};
+        {_,Nick} ->
+            case lists:any(fun(X) -> X end, lists:map(
+                fun({_,ChannelUsers}) ->
+                     lists:member(Pid,ChannelUsers)
+                end,
+            Channels)) of
+                true ->
+                    {leave_channels_first,St};
+                false ->
+                    {ok,St#server_st{users = lists:delete({Pid,Nick}, Users)}}
+            end
     end;
 
 % User joins a channel. If there is no channel with the name one is created.
@@ -40,9 +57,15 @@ loop(St, {join, [_|Channel], Pid}) ->
     Channels = St#server_st.channels,
     case lists:keyfind(Channel, 1, Channels) of
         false ->
-            register(list_to_atom(Channel),spawn(server,channel,[])),
+            register(list_to_atom(Channel ++ "_channel"),spawn(server,channel,[Channel])),
             { ok, St#server_st{channels = [ {Channel,[Pid] } | Channels] } };
-        {_, Users} -> {ok, St#server_st{channels = lists:keyreplace(Channel,1,Channels,{Channel,[Pid | Users]})}}
+        {_, Users} ->
+            case lists:member(Pid,Users) of
+                false ->
+                    {ok, St#server_st{channels = lists:keyreplace(Channel,1,Channels,{Channel,[Pid | Users]})}};
+                true ->
+                    {user_already_joined, St}
+            end
     end;
 
 % User leaves a channel.
@@ -65,9 +88,9 @@ loop(St, {leave, [_|Channel], Pid}) ->
 loop(St, {msg_from_GUI, [_|Channel], Msg, Pid} ) ->
     Channels = St#server_st.channels,
     case lists:keyfind(Channel, 1, Channels) of
-        false -> {not_joined, St};
+        false -> {user_not_joined, St};
         _ ->
-            %list_to_atom(Channel) ! {message, Msg, Pid},
+            list_to_atom(Channel ++ "_channel") ! {message, Msg, Pid, St},
             {ok,St}
     end;
 
@@ -75,7 +98,7 @@ loop(St, {msg_from_GUI, [_|Channel], Msg, Pid} ) ->
 loop(St,{whoami, Pid}) ->
     Users = St#server_st.users,
     case lists:keyfind(Pid, 1, Users) of
-        false -> {not_connected, St};
+        false -> {user_not_connected, St};
         {_,Nick} ->  {Nick,St}
     end;
 
@@ -85,10 +108,10 @@ loop(St,{nick, Nick, Pid}) ->
     case lists:keyfind(Nick, 2, Users) of
         false ->
             case lists:keyfind(Pid, 1, Users) of
-                false -> {not_connected, St};
+                false -> {user_not_connected, St};
                 _ -> {ok, St#server_st{users = lists:keyreplace(Pid,1,St#server_st.users,{Pid,Nick})}}
             end;
-        _ -> {nick_in_use, St}
+        _ -> {nick_taken, St}
     end;
 
 loop(St, Request) ->

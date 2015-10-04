@@ -8,7 +8,7 @@ initial_state(Nick, GUIName) ->
 
 request(St,Data,Callback) ->
     Server = St#client_st.server,
-    Error = { {error, not_connected, "You are not connected to a server!"},
+    Error = { {error, user_not_connected, "You are not connected to a server!"},
                St#client_st{server = undefined, channels = []}},
     case Server of
         undefined -> Error;
@@ -16,7 +16,7 @@ request(St,Data,Callback) ->
             ServerAtom = list_to_atom(Server),
             Response = genserver:request(ServerAtom, Data),
             case Response of
-                not_connected -> Error;
+                user_not_connected -> Error;
                 _ ->             Callback(Response)
             end
     end.
@@ -31,15 +31,15 @@ loop(St, {connect, Server}) ->
         undefined ->
             ServerAtom = list_to_atom(Server),
             case whereis(ServerAtom) of
-                undefined -> {{error,unknown_host, "Unknown host"}, St};
+                undefined -> {{error,server_not_reached, "Unknown host"}, St};
                 _ ->
                     Response = genserver:request(ServerAtom, {connect,St#client_st.nick, self()}),
                     case Response of
                         ok ->          { ok, St#client_st{server = Server} };
-                        nick_in_use -> { {error, nick_in_use, "Nick already in use"}, St}
+                        user_already_connected -> { {error, user_already_connected, "Nick already in use"}, St}
                     end
             end;
-        _ -> {{error, already_connected, "Already connected to a server"},St}
+        _ -> {{error, user_already_connected, "Already connected to a server"},St}
     end;
 
 %% Disconnect from server
@@ -47,7 +47,8 @@ loop(St, disconnect) ->
     request(St, {disconnect, self() },
         fun(Response) ->
             case Response of
-                ok -> { ok, St#client_st{server = undefined} }
+                ok -> { ok, St#client_st{server = undefined} };
+                leave_channels_first -> {{ error, leave_channels_first, "You have to leave all channels"},St}
             end
         end
     );
@@ -59,7 +60,7 @@ loop(St, {join, Channel}) ->
             Channels = St#client_st.channels,
             case Response of
                 ok ->              { ok, St#client_st{channels = [Channel | Channels]} };
-                already_joined ->  {{error, already_joined, "Already joined channel!"},St}
+                user_already_joined ->  {{error, user_already_joined, "Already joined channel!"},St}
             end
         end
     );
@@ -72,7 +73,7 @@ loop(St, {leave, Channel}) ->
             UpdatedChannelSt = St#client_st{channels = lists:delete(Channel, Channels)},
             case Response of
                 ok ->              { ok, UpdatedChannelSt};
-                user_not_joined ->      {{error, not_joined, "You are not on this channel!"}, UpdatedChannelSt}
+                user_not_joined ->      {{error, user_not_joined, "You are not on this channel!"}, UpdatedChannelSt}
             end
         end
     );
@@ -81,14 +82,14 @@ loop(St, {leave, Channel}) ->
 loop(St, {msg_from_GUI, Channel, Msg}) ->
     Channels = St#client_st.channels,
     UpdatedChannelSt = St#client_st{channels = lists:delete(Channel, Channels)},
-    Error = {{error, not_joined, "You are not on this channel!"}, UpdatedChannelSt},
+    Error = {{error, user_not_joined, "You are not on this channel!"}, UpdatedChannelSt},
     case lists:member(Channel, Channels) of
         true ->
             request(St, {msg_from_GUI, Channel, Msg, self()},
                 fun(Response) ->
                     case Response of
                         ok ->         { ok, St};
-                        not_joined -> Error
+                        user_not_joined -> Error
                     end
                 end
             );
@@ -118,7 +119,7 @@ loop(St, {nick, Nick}) ->
             request(St, {nick, Nick, self()},
                 fun(Response) ->
                     case Response of
-                        nick_in_use -> { {error, nick_in_use, "Nick already in use"}, St};
+                        nick_taken -> { {error, nick_taken, "Nick already in use"}, St};
                         ok ->          NewSt
                     end
                 end
