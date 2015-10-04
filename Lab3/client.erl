@@ -72,7 +72,7 @@ loop(St, {leave, Channel}) ->
             UpdatedChannelSt = St#client_st{channels = lists:delete(Channel, Channels)},
             case Response of
                 ok ->              { ok, UpdatedChannelSt};
-                not_joined ->      {{error, not_joined, "You are not on this channel!"}, UpdatedChannelSt}
+                user_not_joined ->      {{error, not_joined, "You are not on this channel!"}, UpdatedChannelSt}
             end
         end
     );
