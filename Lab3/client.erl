@@ -7,7 +7,7 @@ initial_state(Nick, GUIName) ->
     #client_st { gui = GUIName, nick = Nick, server = undefined, channels = []}.
 
 % Requests to server. Checks that the client is connected to the server
-% before executing the request.
+% before executing the callback.
 request(St,Data,Callback) ->
     Server = St#client_st.server,
     Error = { {error, user_not_connected, "You are not connected to a server!"},
