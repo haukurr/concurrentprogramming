@@ -147,10 +147,5 @@ loop(St,{nick, Nick, Pid}) ->
                     {ok, St#server_st{users = lists:keyreplace(Pid,1,St#server_st.users,{Pid,Nick})}}
             end;
         _ -> {nick_taken, St}
-    end;
+    end.
 
-loop(St, Request) ->
-    io:fwrite("Server received: ~p~n", [Request]),
-    Response = "hi!",
-    io:fwrite("Server is sending: ~p~n", [Response]),
-    {Response, St}.
