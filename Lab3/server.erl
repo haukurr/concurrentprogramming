@@ -8,6 +8,7 @@ initial_state(ServerName) ->
 
 %% ---------------------------------------------------------------------------
 
+% Function for channel process
 channel() ->
     receive
         {message,Message, Pid} ->
@@ -15,6 +16,7 @@ channel() ->
     end,
     channel().
 
+% User connects to server, must have unqiue nickname.
 loop(St, {connect, Nick, Pid}) ->
     Users = St#server_st.users,
     case lists:keyfind(Nick, 2, Users) of
@@ -24,6 +26,7 @@ loop(St, {connect, Nick, Pid}) ->
             {nick_in_use, St}
     end;
 
+% User disconnects from server.
 loop(St, {disconnect, Pid}) ->
     Users = St#server_st.users,
     case lists:keyfind(Pid, 1, Users) of
@@ -31,7 +34,8 @@ loop(St, {disconnect, Pid}) ->
         {_,Nick} -> {ok,St#server_st{users = lists:delete({Pid,Nick}, Users)}}
     end;
 
-
+% User joins a channel. If there is no channel with the name one is created.
+% Consider that #channelname, where "channelname" must not already be a registered atom.
 loop(St, {join, [_|Channel], Pid}) ->
     Channels = St#server_st.channels,
     case lists:keyfind(Channel, 1, Channels) of
@@ -45,6 +49,7 @@ loop(St, {join, [_|Channel], Pid}) ->
         {_, Users}-> {ok, St#server_st{users = lists:keyreplace(Channel,1,Channels,{Channel,[Pid | Users]})}}
     end;
 
+% The server recieves a message from a client.
 loop(St, {msg_from_GUI, [_|Channel], Msg, Pid} ) ->
     Channels = St#server_st.channels,
     case lists:keyfind(Channel, 1, Channels) of
@@ -54,7 +59,7 @@ loop(St, {msg_from_GUI, [_|Channel], Msg, Pid} ) ->
             {ok,St}
     end;
 
-
+% A client ask what name the server has stores for the client.
 loop(St,{whoami, Pid}) ->
     Users = St#server_st.users,
     case lists:keyfind(Pid, 1, Users) of
@@ -62,6 +67,7 @@ loop(St,{whoami, Pid}) ->
         {_,Nick} ->  {Nick,St}
     end;
 
+% A client changes its Nickname on the server, the new nick must be not taken.
 loop(St,{nick, Nick, Pid}) ->
     Users = St#server_st.users,
     case lists:keyfind(Nick, 2, Users) of
