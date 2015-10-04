@@ -6,6 +6,8 @@
 initial_state(Nick, GUIName) ->
     #client_st { gui = GUIName, nick = Nick, server = undefined, channels = []}.
 
+% Requests to server. Checks that the client is connected to the server
+% before executing the request.
 request(St,Data,Callback) ->
     Server = St#client_st.server,
     Error = { {error, user_not_connected, "You are not connected to a server!"},
@@ -93,7 +95,8 @@ loop(St, {msg_from_GUI, Channel, Msg}) ->
             end
     end;
 
-%% Get current nick
+%% Get current nick, tries to find it from the server if connected to one
+% otherwise it will show the locally stored nick. 
 loop(St, whoami) ->
     case St#client_st.server of
         undefined -> { St#client_st.nick,St };
@@ -107,7 +110,7 @@ loop(St, whoami) ->
             )
     end;
 
-%% Change nick
+%% Change nick locally and on the server.
 loop(St, {nick, Nick}) ->
     NewSt = { ok, St#client_st{nick=Nick} },
     case St#client_st.server of
