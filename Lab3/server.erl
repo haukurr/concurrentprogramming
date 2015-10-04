@@ -46,9 +46,9 @@ channel(St, {message, Message, Pid}) ->
         {_, Nick}  ->
             lists:foreach(
                 fun({CurrentPid,_}) ->
-                        spawn(fun() ->
-                            genserver:requestAsync(CurrentPid, {incoming_msg, "#" ++ Channel, Nick, Message})
-                        end)
+                    spawn(fun() ->
+                        genserver:requestAsync(CurrentPid, {incoming_msg, "#" ++ Channel, Nick, Message})
+                    end)
                 end, lists:delete({Pid,Nick},Users)),
             {ok,St}
     end.
