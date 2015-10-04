@@ -59,8 +59,8 @@ loop(St, {join, Channel}) ->
         fun(Response) ->
             Channels = St#client_st.channels,
             case Response of
-                ok ->              { ok, St#client_st{channels = [Channel | Channels]} };
-                user_already_joined ->  {{error, user_already_joined, "Already joined channel!"},St}
+                user_already_joined ->  {{error, user_already_joined, "Already joined channel!"},St};
+                Pid -> { ok, St#client_st{channels = [{Channel,Pid} | Channels]} }
             end
         end
     );
@@ -70,7 +70,7 @@ loop(St, {leave, Channel}) ->
     request(St, {leave, Channel, self()},
         fun(Response) ->
             Channels = St#client_st.channels,
-            UpdatedChannelSt = St#client_st{channels = lists:delete(Channel, Channels)},
+            UpdatedChannelSt = St#client_st{channels = lists:keydelete(Channel,1,Channels)},
             case Response of
                 ok ->              { ok, UpdatedChannelSt};
                 user_not_joined ->      {{error, user_not_joined, "You are not on this channel!"}, UpdatedChannelSt}
@@ -83,17 +83,14 @@ loop(St, {msg_from_GUI, Channel, Msg}) ->
     Channels = St#client_st.channels,
     UpdatedChannelSt = St#client_st{channels = lists:delete(Channel, Channels)},
     Error = {{error, user_not_joined, "You are not on this channel!"}, UpdatedChannelSt},
-    case lists:member(Channel, Channels) of
-        true ->
-            request(St, {msg_from_GUI, Channel, Msg, self()},
-                fun(Response) ->
-                    case Response of
-                        ok ->         { ok, St};
-                        user_not_joined -> Error
-                    end
-                end
-            );
-        false -> Error
+    case lists:keyfind(Channel,1,Channels) of
+        false -> Error;
+        {_,Pid} ->
+            Response = genserver:request(Pid, {message,Msg,self()}),
+            case Response of
+                ok -> { ok, St};
+                user_not_joined -> Error
+            end
     end;
 
 %% Get current nick

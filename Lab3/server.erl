@@ -41,13 +41,17 @@ channel(St, {is_here, UserPid}) ->
 channel(St, {message, Message, Pid}) ->
     Channel = St#channel_st.name,
     Users = St#channel_st.users,
-    {_, Nick}  = lists:keyfind(Pid,1, Users),
-    lists:foreach(
-        fun({CurrentPid,_}) ->
-            genserver:requestAsync(CurrentPid, {incoming_msg, "#" ++ Channel, Nick, Message})
-        end,
-    lists:delete({Pid,Nick},Users)),
-    {ok,St}.
+    case lists:keyfind(Pid,1,Users) of
+        false -> {user_not_joined, St};
+        {_, Nick}  ->
+            lists:foreach(
+                fun({CurrentPid,_}) ->
+                        spawn(fun() ->
+                            genserver:requestAsync(CurrentPid, {incoming_msg, "#" ++ Channel, Nick, Message})
+                        end)
+                end, lists:delete({Pid,Nick},Users)),
+            {ok,St}
+    end.
 
 channelRequest(Channel,Data) ->
     genserver:request(list_to_atom(Channel ++ "_channel"),Data).
@@ -97,11 +101,11 @@ loop(St, {join, [_|Channel], Pid}) ->
             genserver:start(list_to_atom(Channel ++ "_channel"), 
                 #channel_st{users=[{Pid,Nick}],name=Channel}, 
                 fun server:channel/2),
-            { ok, St#server_st{channels = [ Channel | Channels] } };
+            { whereis(list_to_atom(Channel ++ "_channel")), St#server_st{channels = [ Channel | Channels] } };
         true ->
             case channelRequest(Channel,{join,Pid,Nick}) of
                 user_already_joined -> {user_already_joined,St};
-                _ -> {ok,St}
+                _ -> {whereis(list_to_atom(Channel ++ "_channel")), St}
             end
     end;
 
@@ -115,16 +119,6 @@ loop(St, {leave, [_|Channel], Pid}) ->
                 user_not_joined -> {user_not_joined, St};
                 _ -> {ok,St}
             end
-    end;
-
-% The server recieves a message from a client.
-loop(St, {msg_from_GUI, [_|Channel], Msg, Pid} ) ->
-    Channels = St#server_st.channels,
-    case lists:member(Channel, Channels) of
-        false -> {user_not_joined, St};
-        _ ->
-            channelRequestAsync(Channel,{message,Msg,Pid}),
-            {ok,St}
     end;
 
 % A client ask what name the server has stores for the client.
