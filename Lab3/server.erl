@@ -45,10 +45,27 @@ loop(St, {join, [_|Channel], Pid}) ->
             receive
                 _ -> io:fwrite("RECEIVED")
             end,
-            { ok, St#server_st{channels = [ {Channel,[Pid] } | Channels] } };
+            { ok, St#server_st{channels = [ {Channel,[{Pid}] } | Channels] } };
         {_, Users}-> {ok, St#server_st{users = lists:keyreplace(Channel,1,Channels,{Channel,[Pid | Users]})}}
+        % TODO: replace "users = ?" with "channels = ?".
     end;
 
+% User leaves a channel.
+loop(St, {leave, [_|Channel], Pid}) ->
+    Channels = St#server_st.channels,
+    case lists:keyfind(Channel, 1, Channels) of
+        false      -> { user_not_joined, St }; % Channel does not exist.
+        {_, Users} -> 
+            case lists:keyfind(Pid, 1, Users) of
+                false -> { user_not_joined, St }; % User is not in channel.
+                _     -> 
+                    {ok, 
+                        St#server_st{channels = 
+                            lists:keyreplace( Channel, 1, Channels, {Channel, lists:keydelete(Pid, 1, Users)} ) }
+                    }
+            end
+    end;
+    
 % The server recieves a message from a client.
 loop(St, {msg_from_GUI, [_|Channel], Msg, Pid} ) ->
     Channels = St#server_st.channels,
