@@ -49,15 +49,18 @@ channel(St, {message, Message, Pid}) ->
     lists:delete({Pid,Nick},Users)),
     {ok,St}.
 
+channelRequest(Channel,Data) ->
+    genserver:request(list_to_atom(Channel ++ "_channel"),Data).
+
+channelRequestAsync(Channel,Data) ->
+    genserver:requestAsync(list_to_atom(Channel ++ "_channel"),Data).
+
 user_in_a_channel(_,[]) -> false;
 user_in_a_channel(Pid,[Channel | Channels]) ->
-    case genserver:request(list_to_atom(Channel ++ "_channel"),{is_here,Pid}) of
+    case channelRequest(Channel,{is_here,Pid}) of
         yes -> true;
         no -> user_in_a_channel(Pid,Channels)
     end.
-
-channelRequest(Channel,Data) ->
-    genserver:request(list_to_atom(Channel ++ "_channel"),Data).
 
 % User connects to server, must have unqiue nickname.
 loop(St, {connect, Nick, Pid}) ->
@@ -120,9 +123,8 @@ loop(St, {msg_from_GUI, [_|Channel], Msg, Pid} ) ->
     case lists:member(Channel, Channels) of
         false -> {user_not_joined, St};
         _ ->
-            case channelRequest(Channel,{message,Msg,Pid}) of
-                _ -> {ok,St}
-            end
+            channelRequestAsync(Channel,{message,Msg,Pid}),
+            {ok,St}
     end;
 
 % A client ask what name the server has stores for the client.
@@ -142,11 +144,7 @@ loop(St,{nick, Nick, Pid}) ->
             case lists:keyfind(Pid, 1, Users) of
                 false -> {user_not_connected, St};
                 _ -> 
-                    lists:foreach(
-                        fun(Channel) ->
-                            channelRequest(Channel,{nick,Pid,Nick})
-                        end,
-                    Channels),
+                    lists:foreach(fun(Channel) -> channelRequestAsync(Channel,{nick,Pid,Nick}) end, Channels),
                     {ok, St#server_st{users = lists:keyreplace(Pid,1,St#server_st.users,{Pid,Nick})}}
             end;
         _ -> {nick_taken, St}
