@@ -8,13 +8,6 @@ initial_state(ServerName) ->
 
 %% ---------------------------------------------------------------------------
 
-check_user(_,[]) -> false;
-check_user(Pid,[Channel | Channels]) ->
-    case genserver:request(list_to_atom(Channel ++ "_channel"),{is_here,Pid}) of
-        yes -> true;
-        no -> check_user(Pid,Channels)
-    end.
-
 % Function for channel process
 channel(St, {join, UserPid, Nick}) ->
     Users = St#channel_st.users,
@@ -56,6 +49,16 @@ channel(St, {message, Message, Pid}) ->
     lists:delete({Pid,Nick},Users)),
     {ok,St}.
 
+user_in_a_channel(_,[]) -> false;
+user_in_a_channel(Pid,[Channel | Channels]) ->
+    case genserver:request(list_to_atom(Channel ++ "_channel"),{is_here,Pid}) of
+        yes -> true;
+        no -> user_in_a_channel(Pid,Channels)
+    end.
+
+channelRequest(Channel,Data) ->
+    genserver:request(list_to_atom(Channel ++ "_channel"),Data).
+
 % User connects to server, must have unqiue nickname.
 loop(St, {connect, Nick, Pid}) ->
     Users = St#server_st.users,
@@ -73,7 +76,7 @@ loop(St, {disconnect, Pid}) ->
     case lists:keyfind(Pid, 1, Users) of
         false -> {user_not_connected, St};
         {_,Nick} ->
-            case check_user(Pid,Channels) of
+            case user_in_a_channel(Pid,Channels) of
                 true ->
                     {leave_channels_first,St};
                 false ->
@@ -93,7 +96,7 @@ loop(St, {join, [_|Channel], Pid}) ->
                 fun server:channel/2),
             { ok, St#server_st{channels = [ Channel | Channels] } };
         true ->
-            case genserver:request(list_to_atom(Channel ++ "_channel"),{join,Pid,Nick}) of
+            case channelRequest(Channel,{join,Pid,Nick}) of
                 user_already_joined -> {user_already_joined,St};
                 _ -> {ok,St}
             end
@@ -105,7 +108,7 @@ loop(St, {leave, [_|Channel], Pid}) ->
     case lists:member(Channel, Channels) of
         false      -> { user_not_joined, St }; % Channel does not exist.
         true ->
-            case genserver:request(list_to_atom(Channel ++ "_channel"),{leave,Pid}) of
+            case channelRequest(Channel,{leave,Pid}) of
                 user_not_joined -> {user_not_joined, St};
                 _ -> {ok,St}
             end
@@ -117,7 +120,7 @@ loop(St, {msg_from_GUI, [_|Channel], Msg, Pid} ) ->
     case lists:member(Channel, Channels) of
         false -> {user_not_joined, St};
         _ ->
-            case genserver:request(list_to_atom(Channel ++ "_channel"),{message,Msg,Pid}) of
+            case channelRequest(Channel,{message,Msg,Pid}) of
                 _ -> {ok,St}
             end
     end;
@@ -141,7 +144,7 @@ loop(St,{nick, Nick, Pid}) ->
                 _ -> 
                     lists:foreach(
                         fun(Channel) ->
-                            genserver:request(list_to_atom(Channel ++ "_channel"),{nick,Pid,Nick})
+                            channelRequest(Channel,{nick,Pid,Nick})
                         end,
                     Channels),
                     {ok, St#server_st{users = lists:keyreplace(Pid,1,St#server_st.users,{Pid,Nick})}}
