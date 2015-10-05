@@ -16,10 +16,11 @@ request(St,Data,Callback) ->
         undefined -> Error;
         _ ->
             ServerAtom = list_to_atom(Server),
-            Response = genserver:request(ServerAtom, Data),
-            case Response of
+            case catch genserver:request(ServerAtom, Data) of
                 user_not_connected -> Error;
-                _ ->             Callback(Response)
+                {'EXIT', _} ->
+                    {{error, server_not_reached, "Server could not be reached"}, St};
+                Response -> Callback(Response)
             end
     end.
 
@@ -35,10 +36,11 @@ loop(St, {connect, Server}) ->
             case whereis(ServerAtom) of
                 undefined -> {{error,server_not_reached, "Unknown host"}, St};
                 _ ->
-                    Response = genserver:request(ServerAtom, {connect,St#client_st.nick, self()}),
-                    case Response of
+                    case catch genserver:request(ServerAtom, {connect,St#client_st.nick,self()}) of
                         ok ->          { ok, St#client_st{server = Server} };
-                        user_already_connected -> { {error, user_already_connected, "Nick already in use"}, St}
+                        user_already_connected -> { {error, user_already_connected, "Nick already in use"}, St};
+                        {'EXIT', _} ->
+                            {{error, server_not_reached, "Server could not be reached"}, St}
                     end
             end;
         _ -> {{error, user_already_connected, "Already connected to a server"},St}
@@ -88,10 +90,11 @@ loop(St, {msg_from_GUI, Channel, Msg}) ->
     case lists:keyfind(Channel,1,Channels) of
         false -> Error;
         {_,Pid} ->
-            Response = genserver:request(Pid, {message,Msg,self()}),
-            case Response of
+            case catch genserver:request(Pid, {message,Msg,self()}) of
                 ok -> { ok, St};
-                user_not_joined -> Error
+                user_not_joined -> Error;
+                {'EXIT', _} ->
+                    {{error, server_not_reached, "Channel could not be reached"}, St}
             end
     end;
 
