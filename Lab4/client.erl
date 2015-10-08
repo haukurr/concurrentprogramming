@@ -4,19 +4,32 @@
 
 %% Produce initial state
 initial_state(Nick, GUIName) ->
-    #client_st { gui = GUIName, nick = Nick, server = undefined, channels = []}.
+    #client_st { gui = GUIName, nick = Nick, server = undefined, machine = undefined, channels = []}.
+
+% Wrapper for genserver request that accepts a string or a tuple of strings as an address
+genreq(Address,Data) ->
+    case is_tuple(Address) of
+        false -> genserver:request(list_to_atom(Address),Data);
+        true -> 
+            {Server, Machine} = Address,
+            genserver:request({list_to_atom(Server),list_to_atom(Machine)},Data)
+    end.
 
 % Requests to server. Checks that the client is connected to the server
 % before executing the callback.
 request(St,Data,Callback) ->
     Server = St#client_st.server,
+    Machine = St#client_st.machine,
     Error = { {error, user_not_connected, "You are not connected to a server!"},
                St#client_st{server = undefined, channels = []}},
     case Server of
         undefined -> Error;
         _ ->
-            ServerAtom = list_to_atom(Server),
-            case catch genserver:request(ServerAtom, Data) of
+            case Machine of
+                undefined -> Connect = Server;
+                _ -> Connect = {Server,Machine}
+            end,
+            case catch genreq(Connect, Data) of
                 user_not_connected -> Error;
                 {'EXIT', _} ->
                     {{error, server_not_reached, "Server could not be reached"}, St};
@@ -29,22 +42,23 @@ request(St,Data,Callback) ->
 %% loop handles each kind of request from GUI
 
 %% Connect to server
-loop(St, {connect, Server}) ->
+loop(St, {connect, Connect}) ->
+    case is_tuple(Connect) of
+        true -> {Server,Machine} = Connect;
+        false -> {Server,Machine} = {Connect,undefined}
+    end,
     case St#client_st.server of
         undefined ->
-            ServerAtom = list_to_atom(Server),
-            case whereis(ServerAtom) of
-                undefined -> {{error,server_not_reached, "Unknown host"}, St};
-                _ ->
-                    case catch genserver:request(ServerAtom, {connect,St#client_st.nick,self()}) of
-                        ok ->          { ok, St#client_st{server = Server} };
-                        user_already_connected -> { {error, user_already_connected, "Nick already in use"}, St};
-                        {'EXIT', _} ->
-                            {{error, server_not_reached, "Server could not be reached"}, St}
-                    end
+            NewSt = St#client_st{machine = Machine, server = Server},
+            case catch genreq(Connect, {connect,St#client_st.nick,self()}) of
+                ok ->          { ok, NewSt };
+                user_already_connected -> { {error, user_already_connected, "Nick already in use"}, St};
+                {'EXIT', _} ->
+                    {{error, server_not_reached, "Server could not be reached"}, St}
             end;
         _ -> {{error, user_already_connected, "Already connected to a server"},St}
     end;
+
 
 %% Disconnect from server
 loop(St, disconnect) ->

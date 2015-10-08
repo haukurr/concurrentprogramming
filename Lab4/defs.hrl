@@ -5,7 +5,7 @@
 %   nick: the string name of the client.
 %   server: the string name of the server.
 %   channels: a list of tuples with the {name, pid} of the channel.
--record(client_st, {gui, nick, server, channels}).
+-record(client_st, {gui, nick, server, machine,channels}).
 
 % This record defines the structure of the server process.
 % Add whatever other fields you need.
